@@ -6,33 +6,51 @@
 #include "gui.h"
 
 #include <stdio.h>
+#include <stdbool.h>
+
+#define FPS 1
 
 /*
  * Main function
  */
 int main(int argc, char* argv[])
 {
-  gui_size_t size = {
-    .type = GUI_SIZE_MAX,
-    .value.rel = 0.56
-  };
+  gui_t* gui = gui_create(800, 600, "My GUI");
 
-  switch (size.type)
+  gui_menu_create(gui, "main");
+
+  if (gui)
   {
-    case GUI_SIZE_ABS:
-      printf("Absolute size: %d\n", size.value.abs);
-      break;
+    Uint32 end_ticks = 0, start_ticks = 0;
 
-    case GUI_SIZE_REL:
-      printf("Relative size: %f\n", size.value.rel);
-      break;
+    SDL_Event event;
+    SDL_memset(&event, 0, sizeof(event));
 
-    case GUI_SIZE_MAX:
-      printf("Max size\n");
-      break;
+    bool is_running = true;
 
-    default:
-      break;
+    while(is_running)
+    {
+      while(SDL_PollEvent(&event))
+      {
+        if(event.type == SDL_QUIT)
+        {
+          is_running = false;
+
+          break;
+        }
+      }
+
+      end_ticks = SDL_GetTicks();
+
+      if(end_ticks - start_ticks >= 1000 / FPS)
+      {
+        printf("rendering...\n");
+
+        start_ticks = end_ticks;
+      }
+    }
+
+    gui_destroy(&gui);
   }
 
   return 0;
