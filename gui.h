@@ -72,25 +72,52 @@ typedef struct gui_menu_t   gui_menu_t;
 
 typedef struct gui_assets_t gui_assets_t;
 
+/*
+ * SDL
+ */
+
+extern int  sdl_init(void);
+
+extern void sdl_quit(void);
+
+/*
+ * GUI
+ */
 
 extern gui_t* gui_create(int width, int height, char* title);
 
 extern void   gui_destroy(gui_t** gui);
 
+extern int    gui_render(gui_t* gui);
 
-extern gui_menu_t* gui_menu_create(gui_t* gui, char* name);
+/*
+ * Menu
+ */
 
-extern int         gui_menu_destroy(gui_t* gui, const char* name);
+extern gui_menu_t*   gui_menu_create(gui_t* gui, char* name);
 
+extern int           gui_menu_destroy(gui_t* gui, const char* name);
 
 extern gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect);
 
 extern int           gui_menu_window_destroy(gui_menu_t* menu, char* name);
 
 
+/*
+ * Window
+ */
+
 extern gui_window_t* gui_window_child_create(gui_window_t* window, char* name, gui_rect_t gui_rect);
 
 extern int           gui_window_child_destroy(gui_window_t* window, char* name);
+
+extern int           gui_window_texture_render(gui_window_t* window, char* name, int x, int y, int w, int h);
+
+/*
+ * Assets
+ */
+
+extern int gui_texture_load(gui_t* gui, char* name, const char* filepath);
 
 #endif // GUI_H
 
@@ -112,7 +139,7 @@ extern int           gui_window_child_destroy(gui_window_t* window, char* name);
 /*
  * Initialize SDL drivers
  */
-static inline int sdl_drivers_init(void)
+int sdl_init(void)
 {
   if (SDL_Init(SDL_INIT_VIDEO) != 0)
   {
@@ -135,6 +162,7 @@ static inline int sdl_drivers_init(void)
     return 3;
   }
 
+  /*
   if (Mix_Init(0) != 0)
   {
     fprintf(stderr, "Mix_Init: %s\n", Mix_GetError());
@@ -148,6 +176,7 @@ static inline int sdl_drivers_init(void)
 
     return 5;
   }
+  */
 
   return 0;
 }
@@ -155,14 +184,13 @@ static inline int sdl_drivers_init(void)
 /*
  * Quit SDL drivers
  */
-static inline void sdl_drivers_quit(void)
+void sdl_quit(void)
 {
-  SDL_Quit();
-  IMG_Quit();
-  TTF_Quit();
-  Mix_Quit();
-
   Mix_CloseAudio();
+  Mix_Quit();
+  TTF_Quit();
+  IMG_Quit();
+  SDL_Quit();
 }
 
 /*
@@ -382,111 +410,6 @@ static inline void sdl_texture_resize(SDL_Texture** texture, SDL_Renderer* rende
 }
 
 /*
- * Get the absolute pixel size from gui_size
- * in case of relative size, parent_size is used in relation
- */
-static inline int gui_size_abs_get(int parent_size, gui_size_t gui_size)
-{
-  switch (gui_size.type)
-  {
-    case GUI_SIZE_REL:
-      return parent_size * gui_size.value.rel;
-
-    case GUI_SIZE_ABS:
-      return gui_size.value.abs;
-
-    default: case GUI_SIZE_MAX:
-      return parent_size;
-  }
-}
-
-/*
- * Convert GUI Rect to SDL Rect,
- * with the help of parent width and height
- */
-static inline SDL_Rect sdl_rect_create(gui_rect_t gui_rect, int parent_width, int parent_height)
-{
-  int abs_width  = gui_size_abs_get(parent_width,  gui_rect.width);
-  int abs_height = gui_size_abs_get(parent_height, gui_rect.height);
-
-  int left_width    = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_LEFT]);
-  int right_width   = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_RIGHT]);
-  int top_height    = gui_size_abs_get(parent_height, gui_rect.margin[GUI_TOP]);
-  int bottom_height = gui_size_abs_get(parent_height, gui_rect.margin[GUI_BOTTOM]);
-
-  int w = MIN(parent_width  - left_width - right_width,   abs_width);
-  int h = MIN(parent_height - top_height - bottom_height, abs_height);
-
-  int x;
-
-  switch (gui_rect.xpos)
-  {
-    case GUI_LEFT:
-      x = left_width;
-      break;
-
-    case GUI_RIGHT:
-      x = parent_width - w - right_width;
-      break;
-
-    default: case GUI_CENTER:
-      x = (float) (parent_width - w) / .2f;
-      break;
-  }
-
-  int y;
-  
-  switch (gui_rect.ypos)
-  {
-    case GUI_TOP:
-      y = top_height;
-      break;
-
-    case GUI_BOTTOM:
-      y = parent_height - h - bottom_height;
-      break;
-
-    default: case GUI_CENTER:
-      y = (float) (parent_height - h) / .2f;
-      break;
-  }
-  
-  return (SDL_Rect) {x, y, w, h};
-}
-
-/*
- *
- */
-typedef struct gui_window_t
-{
-  char*          name;
-  gui_rect_t     gui_rect;
-  SDL_Rect       sdl_rect;
-  SDL_Texture*   texture;
-  gui_window_t** children;
-  size_t         child_count;
-  bool           is_child;
-  union
-  {
-    gui_window_t* window; // is_child: true
-    gui_menu_t*   menu;   // is_child: false
-  } parent;
-  gui_t*         gui;
-} gui_window_t;
-
-/*
- *
- */
-typedef struct gui_menu_t
-{
-  char*          name;
-  SDL_Texture*   texture;
-  gui_window_t** windows;
-  size_t         window_count;
-  gui_t*         gui;
-} gui_menu_t;
-
-/*
  *
  */
 typedef struct gui_texture_t
@@ -543,6 +466,38 @@ typedef struct gui_assets_t
 /*
  *
  */
+typedef struct gui_window_t
+{
+  char*          name;
+  gui_rect_t     gui_rect;
+  SDL_Rect       sdl_rect;
+  SDL_Texture*   texture;
+  gui_window_t** children;
+  size_t         child_count;
+  bool           is_child;
+  union
+  {
+    gui_window_t* window; // is_child: true
+    gui_menu_t*   menu;   // is_child: false
+  } parent;
+  gui_t*         gui;
+} gui_window_t;
+
+/*
+ *
+ */
+typedef struct gui_menu_t
+{
+  char*          name;
+  SDL_Texture*   texture;
+  gui_window_t** windows;
+  size_t         window_count;
+  gui_t*         gui;
+} gui_menu_t;
+
+/*
+ *
+ */
 typedef struct gui_t
 {
   SDL_Window*   window;
@@ -555,6 +510,297 @@ typedef struct gui_t
   char*         menu_name;
   gui_assets_t* assets;
 } gui_t;
+
+/*
+ * Assets
+ */
+
+/*
+ * Create assets struct
+ */
+static inline gui_assets_t* gui_assets_create(void)
+{
+  gui_assets_t* assets = malloc(sizeof(gui_assets_t));
+
+  if (!assets)
+  {
+    return NULL;
+  }
+
+  memset(assets, 0, sizeof(gui_assets_t));
+
+  return assets;
+}
+
+/*
+ * Destroy gui texture
+ */
+static inline void gui_texture_destroy(gui_texture_t** texture)
+{
+  if (!texture || !(*texture)) return;
+
+  sdl_texture_destroy(&(*texture)->texture);
+
+  free(*texture);
+
+  *texture = NULL;
+}
+
+/*
+ * Destroy gui font
+ */
+static inline void gui_font_destroy(gui_font_t** font)
+{
+  if (!font || !(*font)) return;
+
+  // ttf_font_destroy(&(*font)->font);
+
+  free(*font);
+
+  *font = NULL;
+}
+
+/*
+ * Destroy gui chunk
+ */
+static inline void gui_chunk_destroy(gui_chunk_t** chunk)
+{
+  if (!chunk || !(*chunk)) return;
+
+  // sdl_chunk_destroy(&(*chunk)->chunk);
+
+  free(*chunk);
+
+  *chunk = NULL;
+}
+
+/*
+ * Destroy gui music
+ */
+static inline void gui_music_destroy(gui_music_t** music)
+{
+  if (!music || !(*music)) return;
+
+  // mix_music_destroy(&(*music)->music);
+
+  free(*music);
+
+  *music = NULL;
+}
+
+/*
+ * Destroy assets struct
+ */
+static inline void gui_assets_destroy(gui_assets_t** assets)
+{
+  if (!assets || !(*assets)) return;
+
+  for (size_t index = 0; index < (*assets)->texture_count; index++)
+  {
+    gui_texture_destroy(&(*assets)->textures[index]);
+  }
+
+  free((*assets)->textures);
+
+
+  for (size_t index = 0; index < (*assets)->font_count; index++)
+  {
+    gui_font_destroy(&(*assets)->fonts[index]);
+  }
+
+  free((*assets)->fonts);
+
+
+  for (size_t index = 0; index < (*assets)->chunk_count; index++)
+  {
+    gui_chunk_destroy(&(*assets)->chunks[index]);
+  }
+
+  free((*assets)->chunks);
+
+
+  for (size_t index = 0; index < (*assets)->music_count; index++)
+  {
+    gui_music_destroy(&(*assets)->musics[index]);
+  }
+
+  free((*assets)->musics);
+
+
+  free(*assets);
+
+  *assets = NULL;
+}
+
+/*
+ * Create gui_texture (This is an internal function)
+ */
+static inline gui_texture_t* gui_texture_create(char* name, SDL_Texture* texture)
+{
+  gui_texture_t* gui_texture = malloc(sizeof(gui_texture_t));
+
+  if (!gui_texture)
+  {
+    return NULL;
+  }
+
+  gui_texture->name    = name;
+  gui_texture->texture = texture;
+
+  return gui_texture;
+}
+
+/*
+ * Load texture and add it to gui assets
+ */
+int gui_texture_load(gui_t* gui, char* name, const char* filepath)
+{
+  if (!gui || !filepath)
+  {
+    return 1;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  SDL_Texture* texture = sdl_texture_load(renderer, filepath);
+
+  if (!texture)
+  {
+    return 2;
+  }
+
+  gui_assets_t* assets = gui->assets;
+
+  if (!assets)
+  {
+    sdl_texture_destroy(&texture);
+
+    return 3;
+  }
+
+  gui_texture_t* gui_texture = gui_texture_create(name, texture);
+
+  if (!gui_texture)
+  {
+    sdl_texture_destroy(&texture);
+
+    return 4;
+  }
+
+  gui_texture_t** temp_textures = realloc(assets->textures, sizeof(gui_texture_t*) * (assets->texture_count + 1));
+
+  if (!temp_textures)
+  {
+    sdl_texture_destroy(&texture);
+
+    free(gui_texture);
+
+    return 4;
+  }
+
+  assets->textures = temp_textures;
+
+  assets->textures[assets->texture_count++] = gui_texture;
+
+  return 0;
+}
+
+/*
+ * Get loaded texture by name
+ */
+static inline gui_texture_t* gui_texture_get(gui_t* gui, char* name)
+{
+  gui_assets_t* assets = gui->assets;
+
+  for (size_t index = 0; index < assets->texture_count; index++)
+  {
+    gui_texture_t* gui_texture = assets->textures[index];
+
+    if (strcmp(gui_texture->name, name) == 0)
+    {
+      return gui_texture;
+    }
+  }
+
+  return NULL;
+}
+
+/*
+ * Window
+ */
+
+/*
+ * Get the absolute pixel size from gui_size
+ * in case of relative size, parent_size is used in relation
+ */
+static inline int gui_size_abs_get(int parent_size, gui_size_t gui_size)
+{
+  switch (gui_size.type)
+  {
+    case GUI_SIZE_REL:
+      return parent_size * gui_size.value.rel;
+
+    case GUI_SIZE_ABS:
+      return gui_size.value.abs;
+
+    default: case GUI_SIZE_MAX:
+      return parent_size;
+  }
+}
+
+/*
+ * Convert GUI Rect to SDL Rect,
+ * with the help of parent width and height
+ */
+static inline SDL_Rect sdl_rect_create(gui_rect_t gui_rect, int parent_width, int parent_height)
+{
+  int abs_width  = gui_size_abs_get(parent_width,  gui_rect.width);
+  int abs_height = gui_size_abs_get(parent_height, gui_rect.height);
+
+  int left_width    = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_LEFT]);
+  int right_width   = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_RIGHT]);
+  int top_height    = gui_size_abs_get(parent_height, gui_rect.margin[GUI_TOP]);
+  int bottom_height = gui_size_abs_get(parent_height, gui_rect.margin[GUI_BOTTOM]);
+
+  int w = MIN(parent_width  - left_width - right_width,   abs_width);
+  int h = MIN(parent_height - top_height - bottom_height, abs_height);
+
+  int x;
+
+  switch (gui_rect.xpos)
+  {
+    case GUI_LEFT:
+      x = left_width;
+      break;
+
+    case GUI_RIGHT:
+      x = parent_width - w - right_width;
+      break;
+
+    default: case GUI_CENTER:
+      x = (float) (parent_width - w) / 2.f;
+      break;
+  }
+
+  int y;
+  
+  switch (gui_rect.ypos)
+  {
+    case GUI_TOP:
+      y = top_height;
+      break;
+
+    case GUI_BOTTOM:
+      y = parent_height - h - bottom_height;
+      break;
+
+    default: case GUI_CENTER:
+      y = (float) (parent_height - h) / 2.f;
+      break;
+  }
+  
+  return (SDL_Rect) {x, y, w, h};
+}
 
 /*
  * Only destroy window (This is an internal function)
@@ -658,6 +904,47 @@ int gui_window_child_destroy(gui_window_t* window, char* name)
   }
 
   window->children = temp_children;
+
+  return 0;
+}
+
+/*
+ * Render loaded texture (name) to window texture
+ */
+int gui_window_texture_render(gui_window_t* window, char* name, int x, int y, int w, int h)
+{
+  if (!window || !name)
+  {
+    return 1;
+  }
+
+  gui_t* gui = window->gui;
+
+  if (!gui)
+  {
+    return 2;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 3;
+  }
+
+  gui_texture_t* gui_texture = gui_texture_get(gui, name);
+  
+  if (!gui_texture)
+  {
+    return 4;
+  }
+
+  SDL_Rect sdl_rect = {x, y, w, h};
+
+  if (sdl_target_texture_render(renderer, window->texture, gui_texture->texture, &sdl_rect) != 0)
+  {
+    return 5;
+  }
 
   return 0;
 }
@@ -826,6 +1113,109 @@ gui_window_t* gui_window_child_create(gui_window_t* window, char* name, gui_rect
 }
 
 /*
+ * Render window with all of it's child windows
+ */
+static inline int gui_window_render(gui_window_t* window)
+{
+  if (!window)
+  {
+    return 1;
+  }
+
+  gui_t* gui = window->gui;
+
+  if (!gui)
+  {
+    return 2;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 3;
+  }
+
+  for (size_t index = 0; index < window->child_count; index++)
+  {
+    gui_window_t* child = window->children[index];
+
+    if (gui_window_render(child) != 0)
+    {
+      return 4;
+    }
+
+    if (sdl_target_texture_render(renderer, window->texture, child->texture, &child->sdl_rect) != 0)
+    {
+      return 5;
+    }
+
+    if (sdl_target_clear(renderer, child->texture) != 0)
+    {
+      return 6;
+    }
+  }
+
+  return 0;
+}
+
+/*
+ * Menu
+ */
+
+/*
+ * Render menu with all of it's windows and child windows
+ *
+ * Clear the textures of the windows that are rendered
+ *
+ * The for-loop decides which order to render the windows
+ */
+static inline int gui_menu_render(gui_menu_t* menu)
+{
+  if (!menu)
+  {
+    return 1;
+  }
+
+  gui_t* gui = menu->gui;
+
+  if (!gui)
+  {
+    return 2;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 3;
+  }
+
+  for (size_t index = 0; index < menu->window_count; index++)
+  {
+    gui_window_t* window = menu->windows[index];
+
+    if (gui_window_render(window) != 0)
+    {
+      return 4;
+    }
+
+    if (sdl_target_texture_render(renderer, menu->texture, window->texture, &window->sdl_rect) != 0)
+    {
+      return 5;
+    }
+
+    if (sdl_target_clear(renderer, window->texture) != 0)
+    {
+      return 6;
+    }
+  }
+
+  return 0;
+}
+
+
+/*
  * Create gui
  */
 gui_t* gui_create(int width, int height, char* title)
@@ -862,6 +1252,8 @@ gui_t* gui_create(int width, int height, char* title)
   gui->title  = title;
   gui->width  = width;
   gui->height = height;
+
+  gui->assets = gui_assets_create();
 
   return gui;
 }
@@ -941,6 +1333,9 @@ gui_menu_t* gui_menu_create(gui_t* gui, char* name)
 
   gui->menus[gui->menu_count++] = menu;
 
+  // Set the newly created menu as the active one
+  gui->menu_name = name;
+
   return menu;
 }
 
@@ -965,6 +1360,16 @@ static inline gui_menu_t* gui_menu_get(gui_t* gui, const char* name)
   }
 
   return NULL;
+}
+
+/*
+ * Get active menu
+ */
+static inline gui_menu_t* gui_active_menu_get(gui_t* gui)
+{
+  if (!gui) return NULL;
+
+  return gui_menu_get(gui, gui->menu_name);
 }
 
 /*
@@ -1044,6 +1449,9 @@ void gui_destroy(gui_t** gui)
   free((*gui)->menus);
 
 
+  gui_assets_destroy(&(*gui)->assets);
+
+
   sdl_renderer_destroy(&(*gui)->renderer);
 
   sdl_window_destroy(&(*gui)->window);
@@ -1051,6 +1459,53 @@ void gui_destroy(gui_t** gui)
   free(*gui);
 
   *gui = NULL;
+}
+
+/*
+ * Render screen
+ */
+int gui_render(gui_t* gui)
+{
+  if (!gui)
+  {
+    return 1;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 2;
+  }
+
+  // Clear the screen
+  if (sdl_target_clear(renderer, NULL) != 0)
+  {
+    return 3;
+  }
+
+  gui_menu_t* menu = gui_active_menu_get(gui);
+
+  if (gui_menu_render(menu) != 0)
+  {
+    return 4;
+  }
+
+  // Render the menu texture to the screen
+  if (sdl_target_texture_render(renderer, NULL, menu->texture, NULL) != 0)
+  {
+    return 5;
+  }
+
+  // Clear menu texture
+  if (sdl_target_clear(renderer, menu->texture) != 0)
+  {
+    return 6;
+  }
+
+  SDL_RenderPresent(renderer);
+
+  return 0;
 }
 
 #endif // GUI_IMPLEMENT

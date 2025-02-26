@@ -7,31 +7,59 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <errno.h>
+#include <time.h>
+#include <unistd.h>
 
 #define FPS 1
+
+/*
+ *
+ */
+static inline int game_render(gui_t* gui)
+{
+
+}
 
 /*
  * Main function
  */
 int main(int argc, char* argv[])
 {
+  if (sdl_init() != 0)
+  {
+    fprintf(stderr, "sdl_init: %s", strerror(errno));
+
+    return 1;
+  }
+
   gui_t* gui = gui_create(800, 600, "My GUI");
 
   gui_menu_t* main_menu = gui_menu_create(gui, "main");
 
-  gui_window_t* parent_window = gui_menu_window_create(main_menu, "parent",
-    (gui_rect_t) {
-      .width = (gui_size_t) {
-        .type = GUI_SIZE_MAX
-      },
-      .height = (gui_size_t) {
-        .type = GUI_SIZE_REL,
-        .value.rel = 0.4
-      },
-      .xpos = GUI_CENTER,
-      .ypos = GUI_CENTER
-    }
-  );
+
+  gui_rect_t gui_rect = { 0 };
+
+  gui_rect.width = (gui_size_t)
+  {
+    .type = GUI_SIZE_MAX
+  };
+  
+  gui_rect.height = (gui_size_t)
+  {
+    .type = GUI_SIZE_REL,
+    .value.rel = 0.4
+  };
+
+  gui_rect.xpos = GUI_CENTER;
+  gui_rect.ypos = GUI_CENTER;
+
+  gui_window_t* parent_window = gui_menu_window_create(main_menu, "parent", gui_rect);
+
+  if (gui_texture_load(gui, "symbol-mine", "../minesweeper/assets/textures/symbol-one.png") == 0)
+  {
+    printf("Loaded texture\n");
+  }
 
   if (gui)
   {
@@ -58,7 +86,12 @@ int main(int argc, char* argv[])
 
       if(end_ticks - start_ticks >= 1000 / FPS)
       {
-        printf("rendering...\n");
+        if (gui_window_texture_render(parent_window, "symbol-mine", 0, 0, 100, 100) == 0)
+        {
+          printf("Rendered texture\n");
+        }
+
+        printf("gui_render: %d\n", gui_render(gui));
 
         start_ticks = end_ticks;
       }
@@ -66,6 +99,8 @@ int main(int argc, char* argv[])
 
     gui_destroy(&gui);
   }
+
+  sdl_quit();
 
   return 0;
 }
