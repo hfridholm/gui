@@ -16,9 +16,31 @@
 /*
  *
  */
-void* square_click_handle(gui_t* gui, SDL_Event* event)
+void* screen_resize_handle(gui_t* gui, int width, int height)
 {
-  printf("Square clicked...\n");
+  printf("Screen resized (%d x %d)\n", width, height);
+
+  return NULL;
+}
+
+/*
+ *
+ */
+void* square_click_handle(gui_t* gui, int x, int y)
+{
+  printf("Square clicked (%d, %d)\n", x, y);
+
+  return NULL;
+}
+
+/*
+ *
+ */
+void* key_down_handle(gui_t* gui, int key)
+{
+  printf("key down: %d\n", key);
+
+  return NULL;
 }
 
 /*
@@ -70,11 +92,26 @@ int main(int argc, char* argv[])
     printf("Loaded textures\n");
   }
 
+  printf("gui_event_create: %d\n", gui_event_create(gui, "window-resize",
+    (gui_event_handler_t) {
+      .type = GUI_EVENT_HANDLER_MOUSE,
+      .handler.mouse = &square_click_handle
+    })
+  );
 
-  if (gui_event_create(gui, "mouse-down-left", &square_click_handle) == 0)
-  {
-    printf("Created event");
-  }
+  printf("gui_event_create: %d\n", gui_event_create(gui, "mouse-down-left",
+    (gui_event_handler_t) {
+      .type = GUI_EVENT_HANDLER_KEY,
+      .handler.key = &key_down_handle
+    })
+  );
+
+  printf("gui_event_create: %d\n", gui_event_create(gui, "window-resize",
+    (gui_event_handler_t) {
+      .type = GUI_EVENT_HANDLER_RESIZE,
+      .handler.resize = &screen_resize_handle
+    })
+  );
 
   if (gui)
   {

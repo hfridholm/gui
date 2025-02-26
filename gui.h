@@ -82,8 +82,33 @@ typedef struct gui_menu_t   gui_menu_t;
 
 typedef struct gui_assets_t gui_assets_t;
 
+/*
+ * Event
+ */
 
-typedef void* (*gui_event_handler_t)(gui_t* gui, SDL_Event* event);
+/*
+ *
+ */
+typedef enum gui_event_handler_type_t
+{
+  GUI_EVENT_HANDLER_MOUSE, // Get position of mouse
+  GUI_EVENT_HANDLER_KEY,   // Get pressed key
+  GUI_EVENT_HANDLER_RESIZE // Get new size of screen
+} gui_event_handler_type_t;
+
+/*
+ *
+ */
+typedef struct gui_event_handler_t
+{
+  gui_event_handler_type_t type;
+  union
+  {
+    void* (*mouse) (gui_t* gui, int x, int y);
+    void* (*key)   (gui_t* gui, int key);
+    void* (*resize)(gui_t* gui, int width, int height);
+  } handler;
+} gui_event_handler_t;
 
 /*
  * SDL
@@ -1682,7 +1707,7 @@ static inline gui_event_t* _gui_event_create(char* name, gui_event_handler_t han
  */
 int gui_event_create(gui_t* gui, char* name, gui_event_handler_t handler)
 {
-  if (!gui || !name || !handler)
+  if (!gui || !name)
   {
     return 1;
   }
@@ -1836,18 +1861,58 @@ static inline void gui_mouse_up_event_handle(gui_t* gui, SDL_Event* event)
 /*
  *
  */
+static inline void gui_event_handler_call(gui_t* gui, SDL_Event* event, gui_event_handler_t handler)
+{
+  switch (handler.type)
+  {
+    case GUI_EVENT_HANDLER_KEY:
+      int key = event->key.keysym.sym;
+
+      handler.handler.key(gui, key);
+      break;
+
+    case GUI_EVENT_HANDLER_MOUSE:
+      int x = event->button.x;
+      int y = event->button.y;
+
+      handler.handler.mouse(gui, x, y);
+      break;
+
+    case GUI_EVENT_HANDLER_RESIZE:
+      int width  = event->window.data1;
+      int height = event->window.data2;
+
+      handler.handler.resize(gui, width, height);
+      break;
+
+    default:
+      break;
+  }
+}
+
+/*
+ *
+ */
+static inline void gui_event_handlers_call(gui_t* gui, SDL_Event* event, gui_event_t* gui_event)
+{
+  for (size_t index = 0; index < gui_event->handler_count; index++)
+  {
+    gui_event_handler_t handler = gui_event->handlers[index];
+
+    gui_event_handler_call(gui, event, handler);
+  }
+}
+
+/*
+ *
+ */
 static inline void gui_mouse_down_left_event_handle(gui_t* gui, SDL_Event* event)
 {
   gui_event_t* gui_event = gui_event_get(gui, "mouse-down-left");
 
   if (gui_event)
   {
-    for (size_t index = 0; index < gui_event->handler_count; index++)
-    {
-      gui_event_handler_t handler = gui_event->handlers[index];
-
-      handler(gui, event);
-    }
+    gui_event_handlers_call(gui, event, gui_event);
   }
 }
 
@@ -1872,6 +1937,25 @@ static inline void gui_mouse_down_event_handle(gui_t* gui, SDL_Event* event)
 }
 
 /*
+ *
+ */
+static inline void gui_window_resize_event_handle(gui_t* gui, SDL_Event* event)
+{
+  gui_event_t* gui_event = gui_event_get(gui, "window-resize");
+
+  if (gui_event)
+  {
+    gui_event_handlers_call(gui, event, gui_event);
+  }
+
+
+  int width = event->window.data1;
+  int height = event->window.data2;
+
+  gui_resize(gui, width, height);
+}
+
+/*
  * Handle window event
  */
 static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
@@ -1879,7 +1963,7 @@ static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
   switch (event->window.event)
   {
     case SDL_WINDOWEVENT_RESIZED: case SDL_WINDOWEVENT_SIZE_CHANGED:
-      gui_resize(gui, event->window.data1, event->window.data2);
+      gui_window_resize_event_handle(gui, event);
       break;
 
     default:
