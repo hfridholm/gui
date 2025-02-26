@@ -95,35 +95,28 @@ int main(int argc, char* argv[])
 
       if(end_ticks - start_ticks >= 1000 / FPS)
       {
-        if (gui_menu_texture_render(main_menu, "symbol-one",
+        printf("width: %d height: %d\n", gui->width, gui->height);
+
+        printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { NULL }, "symbol-one",
             (gui_size_t) { 0 },
             (gui_size_t) { 0 },
             (gui_size_t) { GUI_SIZE_MAX },
             (gui_size_t) { GUI_SIZE_MAX }
-        ) == 0)
-        {
-          printf("Rendered texture\n");
-        }
+        ));
 
-        if (gui_window_texture_render(parent_window, "background-field", 
+        printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "parent", NULL }, "background-field",
             (gui_size_t) { 0 },
             (gui_size_t) { 0 },
             (gui_size_t) { GUI_SIZE_MAX },
             (gui_size_t) { GUI_SIZE_MAX }
-        ) == 0)
-        {
-          printf("Rendered texture\n");
-        }
+        ));
 
-        if (gui_window_texture_render(parent_window, "symbol-one", 
-            (gui_size_t) { 0 },
+        printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "parent", NULL }, "symbol-two",
+            (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.3 },
             (gui_size_t) { 0 },
             (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.5 },
             (gui_size_t) { GUI_SIZE_MAX }
-        ) == 0)
-        {
-          printf("Rendered texture\n");
-        }
+        ));
 
         printf("gui_render: %d\n", gui_render(gui));
 

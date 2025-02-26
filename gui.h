@@ -98,6 +98,8 @@ extern void   gui_destroy(gui_t** gui);
 
 extern int    gui_render(gui_t* gui);
 
+extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
+
 /*
  * Menu
  */
@@ -859,6 +861,29 @@ static inline void _gui_window_destroy(gui_window_t** window)
 }
 
 /*
+ * Get menu window by name
+ */
+static inline gui_window_t* gui_menu_window_get(gui_menu_t* menu, const char* name)
+{
+  if (!menu || !name)
+  {
+    return NULL;
+  }
+
+  for (ssize_t index = 0; index < menu->window_count; index++)
+  {
+    gui_window_t* window = menu->windows[index];
+
+    if (window && strcmp(window->name, name) == 0)
+    {
+      return window;
+    }
+  }
+
+  return NULL;
+}
+
+/*
  * Get index of menu window by name
  */
 static inline ssize_t gui_menu_window_index_get(gui_menu_t* menu, const char* name)
@@ -902,6 +927,29 @@ static inline ssize_t gui_window_child_index_get(gui_window_t* window, const cha
   }
 
   return -1;
+}
+
+/*
+ * Get window child by name
+ */
+static inline gui_window_t* gui_window_child_get(gui_window_t* window, const char* name)
+{
+  if (!window || !name)
+  {
+    return NULL;
+  }
+
+  for (ssize_t index = 0; index < window->child_count; index++)
+  {
+    gui_window_t* child = window->children[index];
+
+    if (child && strcmp(child->name, name) == 0)
+    {
+      return child;
+    }
+  }
+
+  return NULL;
 }
 
 /*
@@ -1546,6 +1594,53 @@ void gui_destroy(gui_t** gui)
   free(*gui);
 
   *gui = NULL;
+}
+
+/*
+ * Render texture on either window texture or menu texture
+ */
+int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h)
+{
+  if (!gui || !menu_name || !texture_name)
+  {
+    return 1;
+  }
+
+  gui_menu_t* menu = gui_menu_get(gui, menu_name);
+
+  if (!menu)
+  {
+    return 2;
+  }
+
+  char*         window_name = NULL;
+  gui_window_t* window      = NULL;
+
+  for (int index = 0; window_names && (window_name = window_names[index]); index++)
+  {
+    if (index == 0)
+    {
+      window = gui_menu_window_get(menu, window_name);
+    }
+    else
+    {
+      window = gui_window_child_get(window, window_name);
+    }
+
+    if (!window)
+    {
+      return 3;
+    }
+  }
+
+  if (window)
+  {
+    gui_window_texture_render(window, texture_name, x, y, w, h);
+  }
+  else
+  {
+    gui_menu_texture_render(menu, texture_name, x, y, w, h);
+  }
 }
 
 /*
