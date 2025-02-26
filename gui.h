@@ -78,14 +78,19 @@ extern gui_t* gui_create(int width, int height, char* title);
 extern void   gui_destroy(gui_t** gui);
 
 
-extern int gui_menu_create(gui_t* gui, char* name);
+extern gui_menu_t* gui_menu_create(gui_t* gui, char* name);
 
-extern int gui_menu_destroy(gui_t* gui, const char* name);
+extern int         gui_menu_destroy(gui_t* gui, const char* name);
 
 
-extern int gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect);
+extern gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect);
 
-extern int gui_menu_window_destroy(gui_menu_t* menu, char* name);
+extern int           gui_menu_window_destroy(gui_menu_t* menu, char* name);
+
+
+extern gui_window_t* gui_window_child_create(gui_window_t* window, char* name, gui_rect_t gui_rect);
+
+extern int           gui_window_child_destroy(gui_window_t* window, char* name);
 
 #endif // GUI_H
 
@@ -581,25 +586,25 @@ int gui_menu_window_destroy(gui_menu_t* menu, char* name)
 /*
  * Create window and add it to menu
  */
-int gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect)
+gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect)
 {
   if (!menu || !name)
   {
-    return 1;
+    return NULL;
   }
 
   gui_t* gui = menu->gui;
 
   if (!gui)
   {
-    return 2;
+    return NULL;
   }
 
   gui_window_t* window = malloc(sizeof(gui_window_t));
 
   if (!window)
   {
-    return 3;
+    return NULL;
   }
 
   memset(window, 0, sizeof(gui_window_t));
@@ -620,7 +625,7 @@ int gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect)
   {
     free(window);
 
-    return 4;
+    return NULL;
   }
 
 
@@ -630,38 +635,38 @@ int gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect)
   {
     _gui_window_destroy(&window);
 
-    return 5;
+    return NULL;
   }
 
   menu->windows = temp_windows;
 
   menu->windows[menu->window_count++] = window;
 
-  return 0;
+  return window;
 }
 
 /*
  * Create child window and add it to window
  */
-int gui_window_child_create(gui_window_t* window, char* name, gui_rect_t gui_rect)
+gui_window_t* gui_window_child_create(gui_window_t* window, char* name, gui_rect_t gui_rect)
 {
   if (!window || !name)
   {
-    return 1;
+    return NULL;
   }
 
   gui_t* gui = window->gui;
 
   if (!gui)
   {
-    return 2;
+    return NULL;
   }
 
   gui_window_t* child = malloc(sizeof(gui_window_t));
 
   if (!child)
   {
-    return 3;
+    return NULL;
   }
 
   memset(child, 0, sizeof(gui_window_t));
@@ -682,7 +687,7 @@ int gui_window_child_create(gui_window_t* window, char* name, gui_rect_t gui_rec
   {
     free(child);
 
-    return 4;
+    return NULL;
   }
 
 
@@ -692,14 +697,14 @@ int gui_window_child_create(gui_window_t* window, char* name, gui_rect_t gui_rec
   {
     _gui_window_destroy(&child);
 
-    return 5;
+    return NULL;
   }
 
   window->children = temp_children;
 
   window->children[window->child_count++] = child;
 
-  return 0;
+  return child;
 }
 
 /*
@@ -791,18 +796,18 @@ static inline void _gui_menu_destroy(gui_menu_t** menu)
 /*
  * Create menu and add it to GUI
  */
-int gui_menu_create(gui_t* gui, char* name)
+gui_menu_t* gui_menu_create(gui_t* gui, char* name)
 {
   if (!gui || !name)
   {
-    return 1;
+    return NULL;
   }
 
   gui_menu_t* menu = _gui_menu_create(gui, name);
 
   if (!menu)
   {
-    return 2;
+    return NULL;
   }
 
   gui_menu_t** temp_menus = realloc(gui->menus, sizeof(gui_menu_t*) * (gui->menu_count + 1));
@@ -811,14 +816,14 @@ int gui_menu_create(gui_t* gui, char* name)
   {
     _gui_menu_destroy(&menu);
 
-    return 3;
+    return NULL;
   }
 
   gui->menus = temp_menus;
 
   gui->menus[gui->menu_count++] = menu;
 
-  return 0;
+  return menu;
 }
 
 /*
