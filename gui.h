@@ -264,6 +264,124 @@ static inline SDL_Texture* sdl_texture_create(SDL_Renderer* renderer, int width,
 }
 
 /*
+ * Load SDL Texture
+ */
+static inline SDL_Texture* sdl_texture_load(SDL_Renderer* renderer, const char* filepath)
+{
+  SDL_Surface* surface = IMG_Load(filepath);
+  
+  if (!surface)
+  {
+    fprintf(stderr, "IMG_Load: %s\n", IMG_GetError());
+
+    return NULL;
+  }
+
+  SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+
+  SDL_FreeSurface(surface);
+
+  if (!texture)
+  {
+    fprintf(stderr, "SDL_CreateTextureFromSurface: %s\n", SDL_GetError());
+
+    return NULL;
+  }
+
+  return texture;
+}
+
+/*
+ * Set target texture of renderer
+ */
+static inline int sdl_target_set(SDL_Renderer* renderer, SDL_Texture* target)
+{
+  int status = SDL_SetRenderTarget(renderer, target);
+
+  if (status != 0)
+  {
+    fprintf(stderr, "SDL_SetRenderTarget: %s\n", SDL_GetError());
+  }
+
+  return status;
+}
+
+/*
+ * Clear the supplied texture
+ */
+static inline int sdl_target_clear(SDL_Renderer* renderer, SDL_Texture* target)
+{
+  SDL_Texture* old_target = SDL_GetRenderTarget(renderer);
+
+  // 1. Temporarly set the new target
+  if (sdl_target_set(renderer, target) != 0)
+  {
+    return 1;
+  }
+
+  SDL_RenderClear(renderer);
+
+  // 2. Change back to the old target
+  if (sdl_target_set(renderer, old_target) != 0)
+  {
+    return 2;
+  }
+
+  return 0;
+}
+
+/*
+ * Render SDL Texture
+ */
+static inline int sdl_texture_render(SDL_Renderer* renderer, SDL_Texture* texture, SDL_Rect* rect)
+{
+  if (!texture) return 0;
+
+  int status = SDL_RenderCopy(renderer, texture, NULL, rect);
+
+  if (status != 0)
+  {
+    fprintf(stderr, "SDL_RenderCopy: %s\n", SDL_GetError());
+  }
+
+  return status;
+}
+
+/*
+ * Render texture to target texture
+ */
+static inline int sdl_target_texture_render(SDL_Renderer* renderer, SDL_Texture* target, SDL_Texture* texture, SDL_Rect* rect)
+{
+  SDL_Texture* old_target = SDL_GetRenderTarget(renderer);
+
+  // 1. Temporarly set the new target
+  if (sdl_target_set(renderer, target) != 0)
+  {
+    return 1;
+  }
+
+  int status = sdl_texture_render(renderer, texture, rect);
+
+  // 2. Change back to the old target
+  if (sdl_target_set(renderer, old_target) != 0)
+  {
+    return 2;
+  }
+
+  return (status == 0) ? 0 : 3;
+}
+
+/*
+ * Resize SDL Texture
+ */
+static inline void sdl_texture_resize(SDL_Texture** texture, SDL_Renderer* renderer, int width, int height)
+{
+  sdl_texture_destroy(texture);
+
+  *texture = sdl_texture_create(renderer, width, height);
+}
+
+/*
  * Get the absolute pixel size from gui_size
  * in case of relative size, parent_size is used in relation
  */
