@@ -11,6 +11,8 @@
 
 #include <stddef.h>
 
+#include <SDL2/SDL.h>
+
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -94,11 +96,15 @@ extern void sdl_quit(void);
 
 extern gui_t* gui_create(int width, int height, char* title);
 
+extern int    gui_resize(gui_t* gui, int width, int height);
+
 extern void   gui_destroy(gui_t** gui);
 
 extern int    gui_render(gui_t* gui);
 
 extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
+
+extern void   gui_event_handle(gui_t* gui, SDL_Event* event);
 
 /*
  * Menu
@@ -112,8 +118,6 @@ extern gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_re
 
 extern int           gui_menu_window_destroy(gui_menu_t* menu, char* name);
 
-extern int           gui_menu_texture_render(gui_menu_t* menu, char* name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
-
 /*
  * Window
  */
@@ -121,8 +125,6 @@ extern int           gui_menu_texture_render(gui_menu_t* menu, char* name, gui_s
 extern gui_window_t* gui_window_child_create(gui_window_t* window, char* name, gui_rect_t gui_rect);
 
 extern int           gui_window_child_destroy(gui_window_t* window, char* name);
-
-extern int           gui_window_texture_render(gui_window_t* window, char* name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
 
 /*
  * Assets
@@ -415,11 +417,20 @@ static inline int sdl_target_texture_render(SDL_Renderer* renderer, SDL_Texture*
 /*
  * Resize SDL Texture
  */
-static inline void sdl_texture_resize(SDL_Texture** texture, SDL_Renderer* renderer, int width, int height)
+static inline int sdl_texture_resize(SDL_Texture** texture, SDL_Renderer* renderer, int width, int height)
 {
+  SDL_Texture* new_texture = sdl_texture_create(renderer, width, height);
+
+  if (!new_texture)
+  {
+    return 1;
+  }
+
   sdl_texture_destroy(texture);
 
-  *texture = sdl_texture_create(renderer, width, height);
+  *texture = new_texture;
+
+  return 0;
 }
 
 /*
@@ -1613,10 +1624,10 @@ int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* t
     return 2;
   }
 
-  char*         window_name = NULL;
-  gui_window_t* window      = NULL;
+  char* window_name;
+  gui_window_t* window = NULL;
 
-  for (int index = 0; window_names && (window_name = window_names[index]); index++)
+  for (size_t index = 0; window_names && (window_name = window_names[index]); index++)
   {
     if (index == 0)
     {
@@ -1641,6 +1652,8 @@ int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* t
   {
     gui_menu_texture_render(menu, texture_name, x, y, w, h);
   }
+
+  return 0;
 }
 
 /*
@@ -1688,6 +1701,151 @@ int gui_render(gui_t* gui)
   SDL_RenderPresent(renderer);
 
   return 0;
+}
+
+/*
+ *
+ */
+static inline int gui_window_resize(gui_window_t* window, int width, int height)
+{
+  if (!window)
+  {
+    return 1;
+  }
+
+  gui_t* gui = window->gui;
+
+  if (!gui)
+  {
+    return 2;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  window->sdl_rect = sdl_rect_create(window->gui_rect, width, height);
+
+  if (sdl_texture_resize(&window->texture, renderer, window->sdl_rect.w, window->sdl_rect.h) != 0)
+  {
+    return 3;
+  }
+
+
+  for (size_t index = 0; index < window->child_count; index++)
+  {
+    gui_window_t* child = window->children[index];
+
+    if (gui_window_resize(child, window->sdl_rect.w, window->sdl_rect.h) != 0)
+    {
+      return 4;
+    }
+  }
+
+  return 0;
+}
+
+/*
+ *
+ */
+static inline int gui_menu_resize(gui_menu_t* menu, int width, int height)
+{
+  if (!menu)
+  {
+    return 1;
+  }
+
+  gui_t* gui = menu->gui;
+
+  if (!gui)
+  {
+    return 2;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (sdl_texture_resize(&menu->texture, renderer, width, height) != 0)
+  {
+    return 3;
+  }
+
+
+  for (size_t index = 0; index < menu->window_count; index++)
+  {
+    gui_window_t* window = menu->windows[index];
+
+    if (gui_window_resize(window, width, height) != 0)
+    {
+      return 4;
+    }
+  }
+
+  return 0;
+}
+
+/*
+ * Resize gui screen to width and height
+ */
+int gui_resize(gui_t* gui, int width, int height)
+{
+  if (!gui)
+  {
+    return 1;
+  }
+
+  if (SDL_RenderSetLogicalSize(gui->renderer, width, height) != 0)
+  {
+    fprintf(stderr, "SDL_RenderSetLogicalSize: %s\n", SDL_GetError());
+
+    return 2;
+  }
+
+  gui->width  = width;
+  gui->height = height;
+
+  for (size_t index = 0; index < gui->menu_count; index++)
+  {
+    gui_menu_t* menu = gui->menus[index];
+
+    if (gui_menu_resize(menu, gui->width, gui->height) != 0)
+    {
+      return 3;
+    }
+  }
+
+  return 0;
+}
+
+/*
+ * Handle window event
+ */
+static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
+{
+  switch (event->window.event)
+  {
+    case SDL_WINDOWEVENT_RESIZED: case SDL_WINDOWEVENT_SIZE_CHANGED:
+      gui_resize(gui, event->window.data1, event->window.data2);
+      break;
+
+    default:
+      break;
+  }
+}
+
+/*
+ * Handle event
+ */
+void gui_event_handle(gui_t* gui, SDL_Event* event)
+{
+  if (!event) return;
+
+  switch (event->type)
+  {
+    case SDL_WINDOWEVENT:
+      gui_window_event_handle(gui, event);
+      break;
+
+    default:
+      break;
+  }
 }
 
 #endif // GUI_IMPLEMENT

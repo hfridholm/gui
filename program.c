@@ -89,6 +89,8 @@ int main(int argc, char* argv[])
 
           break;
         }
+
+        gui_event_handle(gui, &event);
       }
 
       end_ticks = SDL_GetTicks();
