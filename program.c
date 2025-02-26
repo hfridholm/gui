@@ -56,9 +56,14 @@ int main(int argc, char* argv[])
 
   gui_window_t* parent_window = gui_menu_window_create(main_menu, "parent", gui_rect);
 
-  if (gui_texture_load(gui, "symbol-mine", "../minesweeper/assets/textures/symbol-one.png") == 0)
+  gui_asset_t assets[] = {
+    { "symbol-one", "../minesweeper/assets/textures/symbol-one.png" },
+    { "symbol-two", "../minesweeper/assets/textures/symbol-two.png" }
+  };
+
+  if (gui_textures_load(gui, assets, 2) == 0)
   {
-    printf("Loaded texture\n");
+    printf("Loaded textures\n");
   }
 
   if (gui)
@@ -86,7 +91,17 @@ int main(int argc, char* argv[])
 
       if(end_ticks - start_ticks >= 1000 / FPS)
       {
-        if (gui_window_texture_render(parent_window, "symbol-mine", 0, 0, 100, 100) == 0)
+        if (gui_menu_texture_render(main_menu, "symbol-one", 0, 0, -1, -1) == 0)
+        {
+          printf("Rendered texture\n");
+        }
+
+        if (gui_window_texture_render(parent_window, "symbol-two", 0, 0, 100, 100) == 0)
+        {
+          printf("Rendered texture\n");
+        }
+
+        if (gui_window_texture_render(parent_window, "symbol-one", 0, 100, 100, 100) == 0)
         {
           printf("Rendered texture\n");
         }

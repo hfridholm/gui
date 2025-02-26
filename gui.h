@@ -9,8 +9,16 @@
 #ifndef GUI_H
 #define GUI_H
 
+#include <stddef.h>
+
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+typedef struct gui_asset_t
+{
+  char* name;     // Name of asset
+  char* filepath; // Path to asset
+} gui_asset_t;
 
 /*
  * LEFT, RIGHT, TOP, BOTTOM
@@ -102,6 +110,7 @@ extern gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_re
 
 extern int           gui_menu_window_destroy(gui_menu_t* menu, char* name);
 
+extern int           gui_menu_texture_render(gui_menu_t* menu, char* name, int x, int y, int w, int h);
 
 /*
  * Window
@@ -117,7 +126,9 @@ extern int           gui_window_texture_render(gui_window_t* window, char* name,
  * Assets
  */
 
-extern int gui_texture_load(gui_t* gui, char* name, const char* filepath);
+extern int gui_texture_load(gui_t* gui, gui_asset_t asset);
+
+extern int gui_textures_load(gui_t* gui, gui_asset_t* assets, size_t count);
 
 #endif // GUI_H
 
@@ -653,9 +664,12 @@ static inline gui_texture_t* gui_texture_create(char* name, SDL_Texture* texture
 /*
  * Load texture and add it to gui assets
  */
-int gui_texture_load(gui_t* gui, char* name, const char* filepath)
+int gui_texture_load(gui_t* gui, gui_asset_t asset)
 {
-  if (!gui || !filepath)
+  char* name     = asset.name;
+  char* filepath = asset.filepath;
+
+  if (!gui || !name || !filepath)
   {
     return 1;
   }
@@ -701,6 +715,27 @@ int gui_texture_load(gui_t* gui, char* name, const char* filepath)
   assets->textures = temp_textures;
 
   assets->textures[assets->texture_count++] = gui_texture;
+
+  return 0;
+}
+
+/*
+ * Load textures and add them to gui assets
+ */
+int gui_textures_load(gui_t* gui, gui_asset_t* assets, size_t count)
+{
+  if (!gui || !assets)
+  {
+    return 1;
+  }
+
+  for (size_t index = 0; index < count; index++)
+  {
+    if (gui_texture_load(gui, assets[index]) != 0)
+    {
+      return 2;
+    }
+  }
 
   return 0;
 }
@@ -938,6 +973,9 @@ int gui_window_texture_render(gui_window_t* window, char* name, int x, int y, in
   {
     return 4;
   }
+
+  w = (w == -1) ? window->sdl_rect.w : w;
+  h = (h == -1) ? window->sdl_rect.h : h;
 
   SDL_Rect sdl_rect = {x, y, w, h};
 
@@ -1214,6 +1252,49 @@ static inline int gui_menu_render(gui_menu_t* menu)
   return 0;
 }
 
+/*
+ * Render loaded texture (name) to menu texture
+ */
+int gui_menu_texture_render(gui_menu_t* menu, char* name, int x, int y, int w, int h)
+{
+  if (!menu || !name)
+  {
+    return 1;
+  }
+
+  gui_t* gui = menu->gui;
+
+  if (!gui)
+  {
+    return 2;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 3;
+  }
+
+  gui_texture_t* gui_texture = gui_texture_get(gui, name);
+  
+  if (!gui_texture)
+  {
+    return 4;
+  }
+
+  w = (w == -1) ? gui->width  : w;
+  h = (h == -1) ? gui->height : h;
+
+  SDL_Rect sdl_rect = {x, y, w, h};
+
+  if (sdl_target_texture_render(renderer, menu->texture, gui_texture->texture, &sdl_rect) != 0)
+  {
+    return 5;
+  }
+
+  return 0;
+}
 
 /*
  * Create gui
