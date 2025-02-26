@@ -16,9 +16,9 @@
 /*
  *
  */
-static inline int game_render(gui_t* gui)
+void* square_click_handle(gui_t* gui, SDL_Event* event)
 {
-
+  printf("Square clicked...\n");
 }
 
 /*
@@ -68,6 +68,12 @@ int main(int argc, char* argv[])
   if (gui_textures_load(gui, assets, asset_count) == 0)
   {
     printf("Loaded textures\n");
+  }
+
+
+  if (gui_event_create(gui, "mouse-down-left", &square_click_handle) == 0)
+  {
+    printf("Created event");
   }
 
   if (gui)

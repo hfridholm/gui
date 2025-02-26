@@ -82,6 +82,9 @@ typedef struct gui_menu_t   gui_menu_t;
 
 typedef struct gui_assets_t gui_assets_t;
 
+
+typedef void* (*gui_event_handler_t)(gui_t* gui, SDL_Event* event);
+
 /*
  * SDL
  */
@@ -105,6 +108,8 @@ extern int    gui_render(gui_t* gui);
 extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
 
 extern void   gui_event_handle(gui_t* gui, SDL_Event* event);
+
+extern int    gui_event_create(gui_t* gui, char* name, gui_event_handler_t handler);
 
 /*
  * Menu
@@ -522,6 +527,16 @@ typedef struct gui_menu_t
 /*
  *
  */
+typedef struct gui_event_t
+{
+  char*                name;
+  gui_event_handler_t* handlers;
+  size_t               handler_count;
+} gui_event_t;
+
+/*
+ *
+ */
 typedef struct gui_t
 {
   SDL_Window*   window;
@@ -533,6 +548,8 @@ typedef struct gui_t
   size_t        menu_count;
   char*         menu_name;
   gui_assets_t* assets;
+  gui_event_t** events;
+  size_t        event_count;
 } gui_t;
 
 /*
@@ -1581,6 +1598,326 @@ int gui_menu_destroy(gui_t* gui, const char* name)
 }
 
 /*
+ * Events
+ */
+
+/*
+ *
+ */
+static inline gui_event_t* gui_event_get(gui_t* gui, char* name)
+{
+  for (size_t index = 0; index < gui->event_count; index++)
+  {
+    gui_event_t* event = gui->events[index];
+
+    if (strcmp(event->name, name) == 0)
+    {
+      return event;
+    }
+  }
+
+  return NULL;
+}
+
+/*
+ * Destroy gui event and remove handlers
+ */
+static inline void gui_event_destroy(gui_event_t** event)
+{
+  if (!event || !(*event)) return;
+
+  free((*event)->handlers);
+
+  free(*event);
+
+  *event = NULL;
+}
+
+/*
+ * Destroy all gui events
+ */
+void gui_events_destroy(gui_event_t*** events, size_t count)
+{
+  for (size_t index = 0; index < count; index++)
+  {
+    gui_event_destroy(&(*events)[index]);
+  }
+
+  free(*events);
+
+  *events = NULL;
+}
+
+/*
+ *
+ */
+static inline gui_event_t* _gui_event_create(char* name, gui_event_handler_t handler)
+{
+  gui_event_t* event = malloc(sizeof(gui_event_t));
+
+  if (!event)
+  {
+    return NULL;
+  }
+
+  event->name = name;
+
+  event->handlers = malloc(sizeof(gui_event_handler_t));
+
+  if (!event->handlers)
+  {
+    free(event);
+
+    return NULL;
+  }
+
+  event->handlers[0] = handler;
+  event->handler_count = 1;
+
+  return event;
+}
+
+/*
+ * Create event and assign handler
+ */
+int gui_event_create(gui_t* gui, char* name, gui_event_handler_t handler)
+{
+  if (!gui || !name || !handler)
+  {
+    return 1;
+  }
+
+  gui_event_t* event = gui_event_get(gui, name);
+
+  if (event)
+  {
+    gui_event_handler_t* temp_handlers = realloc(event->handlers, sizeof(gui_event_handler_t) * (event->handler_count + 1));
+
+    if (!temp_handlers)
+    {
+      return 2;
+    }
+
+    event->handlers = temp_handlers;
+
+    event->handlers[event->handler_count++] = handler;
+  }
+  else
+  {
+    event = _gui_event_create(name, handler);
+
+    if (!event)
+    {
+      return 3;
+    }
+
+    gui_event_t** temp_events = realloc(gui->events, sizeof(gui_event_t*) * (gui->event_count + 1));
+
+    if (!temp_events)
+    {
+      free(event);
+
+      return 4;
+    }
+
+    gui->events = temp_events;
+
+    gui->events[gui->event_count++] = event;
+  }
+
+  return 0;
+}
+
+/*
+ * Check if x and y is inside SDL Rect
+ */
+static inline bool x_and_y_is_inside_rect(int x, int y, SDL_Rect rect)
+{
+  return (x >= rect.x && x <= (rect.x + rect.w) &&
+          y >= rect.y && y <= (rect.y + rect.h));
+}
+
+/*
+ * Try to get the window child which x and y is pointing at
+ */
+static inline gui_window_t* gui_window_x_and_y_child_get(gui_window_t* window, int x, int y)
+{
+  for (size_t index = window->child_count; index-- > 0;)
+  {
+    gui_window_t* child = window->children[index];
+
+    if (x_and_y_is_inside_rect(x, y, child->sdl_rect))
+    {
+      int child_x = x - child->sdl_rect.x;
+      int child_y = y - child->sdl_rect.y;
+
+      gui_window_t* grandchild = gui_window_x_and_y_child_get(child, child_x, child_y);
+
+      return grandchild ? grandchild : child;
+    }
+  }
+
+  return NULL;
+}
+
+/*
+ * Try to get the window which x and y is pointing at
+ */
+static inline gui_window_t* gui_x_and_y_window_get(gui_t* gui, int x, int y)
+{
+  gui_menu_t* menu = gui_active_menu_get(gui);
+
+  if (!menu)
+  {
+    return NULL;
+  }
+
+  for (size_t index = menu->window_count; index-- > 0;)
+  {
+    gui_window_t* window = menu->windows[index];
+
+    if (x_and_y_is_inside_rect(x, y, window->sdl_rect))
+    {
+      int window_x = x - window->sdl_rect.x;
+      int window_y = y - window->sdl_rect.y;
+
+      gui_window_t* child = gui_window_x_and_y_child_get(window, window_x, window_y);
+
+      return child ? child : window;
+    }
+  }
+
+  return NULL;
+}
+
+/*
+ *
+ */
+static inline void gui_mouse_up_right_event_handle(gui_t* gui, SDL_Event* event)
+{
+  int x = event->button.x;
+  int y = event->button.y;
+
+  gui_window_t* window = gui_x_and_y_window_get(gui, x, y);
+
+  if (window)
+  {
+    int window_x = x - window->sdl_rect.x;
+    int window_y = y - window->sdl_rect.y;
+
+    printf("Mouse up right window (%s) x: %d y: %d\n", window->name, window_x, window_y);
+  }
+  else
+  {
+    printf("Mouse up right menu x: %d y: %d\n", x, y);
+  }
+}
+
+/*
+ *
+ */
+static inline void gui_mouse_up_event_handle(gui_t* gui, SDL_Event* event)
+{
+  switch (event->button.button)
+  {
+    case SDL_BUTTON_LEFT:
+      // gui_mouse_up_left_event_handle(gui, event);
+      break;
+
+    case SDL_BUTTON_RIGHT:
+      gui_mouse_up_right_event_handle(gui, event);
+      break;
+
+    default:
+      break;
+  }
+}
+
+/*
+ *
+ */
+static inline void gui_mouse_down_left_event_handle(gui_t* gui, SDL_Event* event)
+{
+  gui_event_t* gui_event = gui_event_get(gui, "mouse-down-left");
+
+  if (gui_event)
+  {
+    for (size_t index = 0; index < gui_event->handler_count; index++)
+    {
+      gui_event_handler_t handler = gui_event->handlers[index];
+
+      handler(gui, event);
+    }
+  }
+}
+
+/*
+ *
+ */
+static inline void gui_mouse_down_event_handle(gui_t* gui, SDL_Event* event)
+{
+  switch (event->button.button)
+  {
+    case SDL_BUTTON_LEFT:
+      gui_mouse_down_left_event_handle(gui, event);
+      break;
+
+    case SDL_BUTTON_RIGHT:
+      // gui_mouse_down_right_event_handle(gui, event);
+      break;
+
+    default:
+      break;
+  }
+}
+
+/*
+ * Handle window event
+ */
+static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
+{
+  switch (event->window.event)
+  {
+    case SDL_WINDOWEVENT_RESIZED: case SDL_WINDOWEVENT_SIZE_CHANGED:
+      gui_resize(gui, event->window.data1, event->window.data2);
+      break;
+
+    default:
+      break;
+  }
+}
+
+/*
+ * Handle event
+ */
+void gui_event_handle(gui_t* gui, SDL_Event* event)
+{
+  if (!event) return;
+
+  switch (event->type)
+  {
+    case SDL_WINDOWEVENT:
+      gui_window_event_handle(gui, event);
+      break;
+
+    case SDL_MOUSEBUTTONDOWN:
+      gui_mouse_down_event_handle(gui, event);
+      break;
+
+    case SDL_MOUSEBUTTONUP:
+      gui_mouse_up_event_handle(gui, event);
+      break;
+
+    default:
+      break;
+  }
+}
+
+/*
+ * GUI
+ */
+
+/*
  * Destroy gui
  */
 void gui_destroy(gui_t** gui)
@@ -1596,6 +1933,8 @@ void gui_destroy(gui_t** gui)
 
 
   gui_assets_destroy(&(*gui)->assets);
+
+  gui_events_destroy(&(*gui)->events, (*gui)->event_count);
 
 
   sdl_renderer_destroy(&(*gui)->renderer);
@@ -1704,7 +2043,7 @@ int gui_render(gui_t* gui)
 }
 
 /*
- *
+ * Resize window texture and children
  */
 static inline int gui_window_resize(gui_window_t* window, int width, int height)
 {
@@ -1744,7 +2083,7 @@ static inline int gui_window_resize(gui_window_t* window, int width, int height)
 }
 
 /*
- *
+ * Resize menu texture and windows within it
  */
 static inline int gui_menu_resize(gui_menu_t* menu, int width, int height)
 {
@@ -1812,40 +2151,6 @@ int gui_resize(gui_t* gui, int width, int height)
   }
 
   return 0;
-}
-
-/*
- * Handle window event
- */
-static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
-{
-  switch (event->window.event)
-  {
-    case SDL_WINDOWEVENT_RESIZED: case SDL_WINDOWEVENT_SIZE_CHANGED:
-      gui_resize(gui, event->window.data1, event->window.data2);
-      break;
-
-    default:
-      break;
-  }
-}
-
-/*
- * Handle event
- */
-void gui_event_handle(gui_t* gui, SDL_Event* event)
-{
-  if (!event) return;
-
-  switch (event->type)
-  {
-    case SDL_WINDOWEVENT:
-      gui_window_event_handle(gui, event);
-      break;
-
-    default:
-      break;
-  }
 }
 
 #endif // GUI_IMPLEMENT
