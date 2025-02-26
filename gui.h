@@ -48,7 +48,30 @@ typedef struct gui_size_t
   } value;
 } gui_size_t;
 
+/*
+ *
+ */
+typedef struct gui_rect_t
+{
+  gui_size_t width;
+  gui_size_t height;
+  gui_size_t margin[4];
+  gui_pos_t  xpos;
+  gui_pos_t  ypos;
+} gui_rect_t;
+
+/*
+ *
+ */
+
 typedef struct gui_t gui_t;
+
+typedef struct gui_window_t gui_window_t;
+
+typedef struct gui_menu_t   gui_menu_t;
+
+typedef struct gui_assets_t gui_assets_t;
+
 
 extern gui_t* gui_create(int width, int height, char* title);
 
@@ -58,6 +81,11 @@ extern void   gui_destroy(gui_t** gui);
 extern int gui_menu_create(gui_t* gui, char* name);
 
 extern int gui_menu_destroy(gui_t* gui, const char* name);
+
+
+extern int gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect);
+
+extern int gui_menu_window_destroy(gui_menu_t* menu, char* name);
 
 #endif // GUI_H
 
@@ -250,18 +278,6 @@ static inline int gui_size_abs_get(int parent_size, gui_size_t gui_size)
 }
 
 /*
- *
- */
-typedef struct gui_rect_t
-{
-  gui_size_t width;
-  gui_size_t height;
-  gui_size_t margin[4];
-  gui_pos_t  xpos;
-  gui_pos_t  ypos;
-} gui_rect_t;
-
-/*
  * Convert GUI Rect to SDL Rect,
  * with the help of parent width and height
  */
@@ -314,16 +330,6 @@ static inline SDL_Rect sdl_rect_create(gui_rect_t gui_rect, int parent_width, in
   
   return (SDL_Rect) {x, y, w, h};
 }
-
-/*
- *
- */
-
-typedef struct gui_window_t gui_window_t;
-
-typedef struct gui_menu_t   gui_menu_t;
-
-typedef struct gui_assets_t gui_assets_t;
 
 /*
  *
@@ -446,6 +452,130 @@ static inline void _gui_window_destroy(gui_window_t** window)
   free(*window);
 
   *window = NULL;
+}
+
+/*
+ * Get index of menu window by name
+ */
+static inline ssize_t gui_menu_window_index_get(gui_menu_t* menu, const char* name)
+{
+  if (!menu || !name)
+  {
+    return -1;
+  }
+
+  for (ssize_t index = 0; index < menu->window_count; index++)
+  {
+    gui_window_t* window = menu->windows[index];
+
+    if (window && strcmp(window->name, name) == 0)
+    {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+/*
+ * Get index of window child by name
+ */
+static inline ssize_t gui_window_child_index_get(gui_window_t* window, const char* name)
+{
+  if (!window || !name)
+  {
+    return -1;
+  }
+
+  for (ssize_t index = 0; index < window->child_count; index++)
+  {
+    gui_window_t* child = window->children[index];
+
+    if (child && strcmp(child->name, name) == 0)
+    {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+/*
+ * Remove child from window and destroy it
+ */
+int gui_window_child_destroy(gui_window_t* window, char* name)
+{
+  if (!window || !name)
+  {
+    return 1;
+  }
+
+  ssize_t child_index = gui_window_child_index_get(window, name);
+
+  if (child_index == -1)
+  {
+    return 2;
+  }
+
+  _gui_window_destroy(&window->children[child_index]);
+
+
+  for (size_t index = child_index; index < (window->child_count - 1); index++)
+  {
+    window->children[index] = window->children[index + 1];
+  }
+
+
+  gui_window_t** temp_children = realloc(window->children, sizeof(gui_window_t*) * (window->child_count - 1));
+
+  if (!temp_children)
+  {
+    // Here, the child is destroyed, but the children array isn't shrunk
+    return 3;
+  }
+
+  window->children = temp_children;
+
+  return 0;
+}
+
+/*
+ * Remove window from menu and destroy it
+ */
+int gui_menu_window_destroy(gui_menu_t* menu, char* name)
+{
+  if (!menu || !name)
+  {
+    return 1;
+  }
+
+  ssize_t window_index = gui_menu_window_index_get(menu, name);
+
+  if (window_index == -1)
+  {
+    return 2;
+  }
+
+  _gui_window_destroy(&menu->windows[window_index]);
+
+
+  for (size_t index = window_index; index < (menu->window_count - 1); index++)
+  {
+    menu->windows[index] = menu->windows[index + 1];
+  }
+
+
+  gui_window_t** temp_windows = realloc(menu->windows, sizeof(gui_window_t*) * (menu->window_count - 1));
+
+  if (!temp_windows)
+  {
+    // Here, the window is destroyed, but the windows array isn't shrunk
+    return 3;
+  }
+
+  menu->windows = temp_windows;
+
+  return 0;
 }
 
 /*
