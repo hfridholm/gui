@@ -42,7 +42,8 @@ int main(int argc, char* argv[])
 
   gui_rect.width = (gui_size_t)
   {
-    .type = GUI_SIZE_MAX
+    .type = GUI_SIZE_REL,
+    .value.rel = 0.5
   };
   
   gui_rect.height = (gui_size_t)
@@ -51,17 +52,20 @@ int main(int argc, char* argv[])
     .value.rel = 0.4
   };
 
-  gui_rect.xpos = GUI_CENTER;
+  gui_rect.xpos = GUI_RIGHT;
   gui_rect.ypos = GUI_CENTER;
 
   gui_window_t* parent_window = gui_menu_window_create(main_menu, "parent", gui_rect);
 
   gui_asset_t assets[] = {
     { "symbol-one", "../minesweeper/assets/textures/symbol-one.png" },
-    { "symbol-two", "../minesweeper/assets/textures/symbol-two.png" }
+    { "symbol-two", "../minesweeper/assets/textures/symbol-two.png" },
+    { "background-field", "../minesweeper/assets/textures/background-field.png" }
   };
 
-  if (gui_textures_load(gui, assets, 2) == 0)
+  size_t asset_count = sizeof(assets) / sizeof(assets[0]);
+
+  if (gui_textures_load(gui, assets, asset_count) == 0)
   {
     printf("Loaded textures\n");
   }
@@ -91,17 +95,32 @@ int main(int argc, char* argv[])
 
       if(end_ticks - start_ticks >= 1000 / FPS)
       {
-        if (gui_menu_texture_render(main_menu, "symbol-one", 0, 0, -1, -1) == 0)
+        if (gui_menu_texture_render(main_menu, "symbol-one",
+            (gui_size_t) { 0 },
+            (gui_size_t) { 0 },
+            (gui_size_t) { GUI_SIZE_MAX },
+            (gui_size_t) { GUI_SIZE_MAX }
+        ) == 0)
         {
           printf("Rendered texture\n");
         }
 
-        if (gui_window_texture_render(parent_window, "symbol-two", 0, 0, 100, 100) == 0)
+        if (gui_window_texture_render(parent_window, "background-field", 
+            (gui_size_t) { 0 },
+            (gui_size_t) { 0 },
+            (gui_size_t) { GUI_SIZE_MAX },
+            (gui_size_t) { GUI_SIZE_MAX }
+        ) == 0)
         {
           printf("Rendered texture\n");
         }
 
-        if (gui_window_texture_render(parent_window, "symbol-one", 0, 100, 100, 100) == 0)
+        if (gui_window_texture_render(parent_window, "symbol-one", 
+            (gui_size_t) { 0 },
+            (gui_size_t) { 0 },
+            (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.5 },
+            (gui_size_t) { GUI_SIZE_MAX }
+        ) == 0)
         {
           printf("Rendered texture\n");
         }

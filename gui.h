@@ -110,7 +110,7 @@ extern gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_re
 
 extern int           gui_menu_window_destroy(gui_menu_t* menu, char* name);
 
-extern int           gui_menu_texture_render(gui_menu_t* menu, char* name, int x, int y, int w, int h);
+extern int           gui_menu_texture_render(gui_menu_t* menu, char* name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
 
 /*
  * Window
@@ -120,7 +120,7 @@ extern gui_window_t* gui_window_child_create(gui_window_t* window, char* name, g
 
 extern int           gui_window_child_destroy(gui_window_t* window, char* name);
 
-extern int           gui_window_texture_render(gui_window_t* window, char* name, int x, int y, int w, int h);
+extern int           gui_window_texture_render(gui_window_t* window, char* name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
 
 /*
  * Assets
@@ -946,7 +946,7 @@ int gui_window_child_destroy(gui_window_t* window, char* name)
 /*
  * Render loaded texture (name) to window texture
  */
-int gui_window_texture_render(gui_window_t* window, char* name, int x, int y, int w, int h)
+int gui_window_texture_render(gui_window_t* window, char* name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h)
 {
   if (!window || !name)
   {
@@ -974,10 +974,13 @@ int gui_window_texture_render(gui_window_t* window, char* name, int x, int y, in
     return 4;
   }
 
-  w = (w == -1) ? window->sdl_rect.w : w;
-  h = (h == -1) ? window->sdl_rect.h : h;
-
-  SDL_Rect sdl_rect = {x, y, w, h};
+  SDL_Rect sdl_rect =
+  {
+    .x = gui_size_abs_get(window->sdl_rect.w, x),
+    .y = gui_size_abs_get(window->sdl_rect.h, y),
+    .w = gui_size_abs_get(window->sdl_rect.w, w),
+    .h = gui_size_abs_get(window->sdl_rect.h, h)
+  };
 
   if (sdl_target_texture_render(renderer, window->texture, gui_texture->texture, &sdl_rect) != 0)
   {
@@ -1255,7 +1258,7 @@ static inline int gui_menu_render(gui_menu_t* menu)
 /*
  * Render loaded texture (name) to menu texture
  */
-int gui_menu_texture_render(gui_menu_t* menu, char* name, int x, int y, int w, int h)
+int gui_menu_texture_render(gui_menu_t* menu, char* name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h)
 {
   if (!menu || !name)
   {
@@ -1283,10 +1286,13 @@ int gui_menu_texture_render(gui_menu_t* menu, char* name, int x, int y, int w, i
     return 4;
   }
 
-  w = (w == -1) ? gui->width  : w;
-  h = (h == -1) ? gui->height : h;
-
-  SDL_Rect sdl_rect = {x, y, w, h};
+  SDL_Rect sdl_rect =
+  {
+    .x = gui_size_abs_get(gui->width,  x),
+    .y = gui_size_abs_get(gui->height, y),
+    .w = gui_size_abs_get(gui->width,  w),
+    .h = gui_size_abs_get(gui->height, h)
+  };
 
   if (sdl_target_texture_render(renderer, menu->texture, gui_texture->texture, &sdl_rect) != 0)
   {
