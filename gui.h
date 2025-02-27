@@ -182,6 +182,8 @@ extern int    gui_clear(gui_t* gui);
 
 extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
 
+extern int    gui_chunk_play(gui_t* gui, char* name);
+
 extern int    gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text, gui_rect_t rect, char* font_name, SDL_Color color);
 
 extern int    gui_event_create(gui_t* gui, char* name, gui_event_handler_t handler);
@@ -269,7 +271,6 @@ int sdl_init(void)
     return 3;
   }
 
-  /*
   if (Mix_Init(0) != 0)
   {
     fprintf(stderr, "Mix_Init: %s\n", Mix_GetError());
@@ -283,7 +284,6 @@ int sdl_init(void)
 
     return 5;
   }
-  */
 
   return 0;
 }
@@ -670,6 +670,50 @@ static inline int sdl_texture_resize(SDL_Texture** texture, SDL_Renderer* render
 }
 
 /*
+ * Load chunk
+ */
+static inline Mix_Chunk* mix_chunk_load(const char* filepath)
+{
+  Mix_Chunk* chunk = Mix_LoadWAV(filepath);
+
+  if (!chunk)
+  {
+    fprintf(stderr, "Mix_LoadWAV: %s\n", Mix_GetError());
+
+    return NULL;
+  }
+
+  return chunk;
+}
+
+/*
+ * Play chunk
+ */
+static inline int mix_chunk_play(Mix_Chunk* chunk)
+{
+  int status = Mix_PlayChannel(-1, chunk, 0);
+
+  if (status == -1)
+  {
+    fprintf(stderr, "Mix_PlayChannel: %s\n", Mix_GetError());
+  }
+
+  return status;
+}
+
+/*
+ * Free chunk
+ */
+static inline void mix_chunk_destroy(Mix_Chunk** chunk)
+{
+  if (!chunk || !(*chunk)) return;
+
+  Mix_FreeChunk(*chunk);
+
+  *chunk = NULL;
+}
+
+/*
  *
  */
 typedef struct gui_texture_t
@@ -843,7 +887,7 @@ static inline void gui_chunk_destroy(gui_chunk_t** chunk)
 {
   if (!chunk || !(*chunk)) return;
 
-  // sdl_chunk_destroy(&(*chunk)->chunk);
+  mix_chunk_destroy(&(*chunk)->chunk);
 
   free(*chunk);
 
@@ -1006,6 +1050,101 @@ int gui_textures_load(gui_t* gui, gui_asset_t* assets, size_t count)
 }
 
 /*
+ * Create gui_chunk (This is an internal function)
+ */
+static inline gui_chunk_t* gui_chunk_create(char* name, Mix_Chunk* chunk)
+{
+  gui_chunk_t* gui_chunk = malloc(sizeof(gui_chunk_t));
+
+  if (!gui_chunk)
+  {
+    return NULL;
+  }
+
+  gui_chunk->name  = name;
+  gui_chunk->chunk = chunk;
+
+  return gui_chunk;
+}
+
+/*
+ * Load chunk and add it to gui assets
+ */
+int gui_chunk_load(gui_t* gui, gui_asset_t asset)
+{
+  char* name     = asset.name;
+  char* filepath = asset.filepath;
+
+  if (!gui || !name || !filepath)
+  {
+    return 1;
+  }
+
+  Mix_Chunk* chunk = mix_chunk_load(filepath);
+
+  if (!chunk)
+  {
+    return 2;
+  }
+
+  gui_assets_t* assets = gui->assets;
+
+  if (!assets)
+  {
+    mix_chunk_destroy(&chunk);
+
+    return 3;
+  }
+
+  gui_chunk_t* gui_chunk = gui_chunk_create(name, chunk);
+
+  if (!gui_chunk)
+  {
+    mix_chunk_destroy(&chunk);
+
+    return 4;
+  }
+
+  gui_chunk_t** temp_chunks = realloc(assets->chunks, sizeof(gui_chunk_t*) * (assets->chunk_count + 1));
+
+  if (!temp_chunks)
+  {
+    mix_chunk_destroy(&chunk);
+
+    free(gui_chunk);
+
+    return 4;
+  }
+
+  assets->chunks = temp_chunks;
+
+  assets->chunks[assets->chunk_count++] = gui_chunk;
+
+  return 0;
+}
+
+/*
+ * Load chunks and add them to gui assets
+ */
+int gui_chunks_load(gui_t* gui, gui_asset_t* assets, size_t count)
+{
+  if (!gui || !assets)
+  {
+    return 1;
+  }
+
+  for (size_t index = 0; index < count; index++)
+  {
+    if (gui_chunk_load(gui, assets[index]) != 0)
+    {
+      return 2;
+    }
+  }
+
+  return 0;
+}
+
+/*
  * Create gui_font (This is an internal function)
  */
 static inline gui_font_t* gui_font_create(char* name, TTF_Font* font)
@@ -1017,7 +1156,7 @@ static inline gui_font_t* gui_font_create(char* name, TTF_Font* font)
     return NULL;
   }
 
-  gui_font->name    = name;
+  gui_font->name = name;
   gui_font->font = font;
 
   return gui_font;
@@ -1138,6 +1277,55 @@ static inline gui_font_t* gui_font_get(gui_t* gui, char* name)
   }
 
   return NULL;
+}
+
+/*
+ * Get loaded chunk by name
+ */
+static inline gui_chunk_t* gui_chunk_get(gui_t* gui, char* name)
+{
+  gui_assets_t* assets = gui->assets;
+
+  for (size_t index = 0; index < assets->chunk_count; index++)
+  {
+    gui_chunk_t* gui_chunk = assets->chunks[index];
+
+    if (strcmp(gui_chunk->name, name) == 0)
+    {
+      return gui_chunk;
+    }
+  }
+
+  return NULL;
+}
+
+/*
+ * Chunk
+ */
+
+/*
+ * Play loaded chunk
+ */
+int gui_chunk_play(gui_t* gui, char* name)
+{
+  if (!gui || !name)
+  {
+    return 1;
+  }
+
+  gui_chunk_t* chunk = gui_chunk_get(gui, name);
+
+  if (!chunk)
+  {
+    return 2;
+  }
+
+  if (mix_chunk_play(chunk->chunk) != 0)
+  {
+    return 3;
+  }
+
+  return 0;
 }
 
 /*

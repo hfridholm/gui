@@ -117,6 +117,8 @@ void* menu_button_handle(gui_t* gui, gui_window_t* window)
   {
     if (strcmp(window->name, "second-button") == 0)
     {
+      gui_chunk_play(gui, "square-swept");
+
       gui_active_menu_set(gui, "second");
 
       game_render(gui);
@@ -124,6 +126,8 @@ void* menu_button_handle(gui_t* gui, gui_window_t* window)
 
     if (strcmp(window->name, "first-button") == 0)
     {
+      gui_chunk_play(gui, "square-flagged");
+
       gui_active_menu_set(gui, "first");
 
       game_render(gui);
@@ -229,6 +233,21 @@ void gui_assets_load(gui_t* gui)
   if (gui_fonts_load(gui, fonts, font_count) == 0)
   {
     printf("Loaded fonts\n");
+  }
+
+
+  gui_asset_t chunks[] = {
+    { "game-won",       "../minesweeper/assets/sounds/game-won.wav"       },
+    { "game-lost",      "../minesweeper/assets/sounds/game-lost.wav"      },
+    { "square-swept",   "../minesweeper/assets/sounds/square-swept.wav"   },
+    { "square-flagged", "../minesweeper/assets/sounds/square-flagged.wav" }
+  };
+
+  size_t chunk_count = sizeof(chunks) / sizeof(gui_asset_t);
+
+  if (gui_chunks_load(gui, chunks, chunk_count) == 0)
+  {
+    printf("Loaded chunks\n");
   }
 }
 
@@ -357,7 +376,7 @@ int main(int argc, char* argv[])
 
     game_render(gui);
 
-    gui_start(gui, 1);
+    gui_start(gui, 10);
 
     gui_destroy(&gui);
   }
