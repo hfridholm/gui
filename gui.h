@@ -123,9 +123,10 @@ typedef struct gui_assets_t gui_assets_t;
 typedef enum gui_event_handler_type_t
 {
   GUI_EVENT_HANDLER_GUI,
-  GUI_EVENT_HANDLER_MOUSE, // Get position of mouse
-  GUI_EVENT_HANDLER_KEY,   // Get pressed key
-  GUI_EVENT_HANDLER_RESIZE // Get new size of screen
+  GUI_EVENT_HANDLER_MOUSE,  // Get position of mouse
+  GUI_EVENT_HANDLER_KEY,    // Get pressed key
+  GUI_EVENT_HANDLER_RESIZE, // Get new size of screen
+  GUI_EVENT_HANDLER_WINDOW  // Get window
 } gui_event_handler_type_t;
 
 /*
@@ -140,6 +141,7 @@ typedef struct gui_event_handler_t
     void* (*mouse) (gui_t* gui, int x, int y);
     void* (*key)   (gui_t* gui, int key);
     void* (*resize)(gui_t* gui, int width, int height);
+    void* (*window)(gui_t* gui, gui_window_t* window);
   } handler;
 } gui_event_handler_t;
 
@@ -470,12 +472,17 @@ static inline int sdl_target_clear(SDL_Renderer* renderer, SDL_Texture* target)
     return 1;
   }
 
+  if (SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255) != 0)
+  {
+    return 2;
+  }
+
   SDL_RenderClear(renderer);
 
   // 2. Change back to the old target
   if (sdl_target_set(renderer, old_target) != 0)
   {
-    return 2;
+    return 3;
   }
 
   return 0;
@@ -758,6 +765,7 @@ typedef struct gui_t
   char*         title;
   int           width;
   int           height;
+  gui_window_t* last_window;
   gui_menu_t**  menus;
   size_t        menu_count;
   char*         menu_name;
@@ -1302,13 +1310,6 @@ static inline SDL_Rect sdl_ratio_rect_create(gui_rect_t gui_rect, int parent_wid
   int top_height    = gui_size_abs_get(parent_height, gui_rect.top);
   int bottom_height = gui_size_abs_get(parent_height, gui_rect.bottom);
 
-  printf("left_width: %d\n", left_width);
-  printf("right_width: %d\n", right_width);
-  printf("top_height: %d\n", top_height);
-  printf("bottom_height: %d\n", bottom_height);
-
-  printf("xpos: %d ypos: %d\n", gui_rect.xpos, gui_rect.ypos);
-
   int w = sdl_rect_w_get(left_width, right_width, parent_width, gui_rect.width);
 
   int h = sdl_rect_h_get(top_height, bottom_height, parent_height, gui_rect.height);
@@ -1328,10 +1329,6 @@ static inline SDL_Rect sdl_ratio_rect_create(gui_rect_t gui_rect, int parent_wid
 
   int y = sdl_rect_y_get(gui_rect.ypos, top_height, bottom_height, parent_height, h);
 
-  printf("aspect_ratio: %f\n", aspect_ratio);
-  printf("parent w: %d h: %d\n", parent_width, parent_height);
-  printf("ratio sdl_rect: x: %d y: %d w: %d h: %d\n", x, y, w, h);
-  
   return (SDL_Rect) {x, y, w, h};
 }
 
@@ -1830,8 +1827,6 @@ static inline int gui_window_render(gui_window_t* window)
 void gui_active_menu_set(gui_t* gui, char* name)
 {
   gui->menu_name = name;
-
-  gui_clear(gui);
 }
 
 /*
@@ -2413,6 +2408,16 @@ gui_window_t* gui_x_and_y_window_get(gui_t* gui, int x, int y)
  */
 static inline void gui_event_handler_call(gui_t* gui, SDL_Event* event, gui_event_handler_t handler)
 {
+  int x = event->button.x;
+  int y = event->button.y;
+
+  gui_window_t* window = gui_x_and_y_window_get(gui, x, y);
+
+  int key = event->key.keysym.sym;
+
+  int width  = event->window.data1;
+  int height = event->window.data2;
+
   switch (handler.type)
   {
     case GUI_EVENT_HANDLER_GUI:
@@ -2420,23 +2425,19 @@ static inline void gui_event_handler_call(gui_t* gui, SDL_Event* event, gui_even
       break;
 
     case GUI_EVENT_HANDLER_KEY:
-      int key = event->key.keysym.sym;
-
       handler.handler.key(gui, key);
       break;
 
     case GUI_EVENT_HANDLER_MOUSE:
-      int x = event->button.x;
-      int y = event->button.y;
-
       handler.handler.mouse(gui, x, y);
       break;
 
     case GUI_EVENT_HANDLER_RESIZE:
-      int width  = event->window.data1;
-      int height = event->window.data2;
-
       handler.handler.resize(gui, width, height);
+      break;
+
+    case GUI_EVENT_HANDLER_WINDOW:
+      handler.handler.window(gui, window);
       break;
 
     default:
@@ -2547,6 +2548,40 @@ static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
 }
 
 /*
+ *
+ */
+static inline void gui_mouse_motion_event_handle(gui_t* gui, SDL_Event* event)
+{
+  gui_event_trigger(gui, event, "mouse-motion");
+
+  int x = event->button.x;
+  int y = event->button.y;
+
+  gui_window_t* window = gui_x_and_y_window_get(gui, x, y);
+
+  if (window != gui->last_window)
+  {
+    if (gui->last_window)
+    {
+      printf("window exit: %s\n", gui->last_window->name);
+
+      gui_event_trigger(gui, event, "window-exit");
+
+      gui->last_window = NULL;
+    }
+
+    if (window)
+    {
+      printf("window enter: %s\n", window->name);
+
+      gui_event_trigger(gui, event, "window-enter");
+
+      gui->last_window = window;
+    }
+  }
+}
+
+/*
  * Handle event
  */
 static inline void gui_event_handle(gui_t* gui, SDL_Event* event)
@@ -2577,6 +2612,10 @@ static inline void gui_event_handle(gui_t* gui, SDL_Event* event)
 
     case SDL_KEYUP:
       gui_event_trigger(gui, event, "key-up");
+      break;
+
+    case SDL_MOUSEMOTION:
+      gui_mouse_motion_event_handle(gui, event);
       break;
 
     default:
@@ -2718,6 +2757,80 @@ int gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text
 }
 
 /*
+ *
+ */
+int gui_window_clear(gui_window_t* window)
+{
+  gui_t* gui = window->gui;
+
+  if (!gui)
+  {
+    return 1;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 2;
+  }
+
+  if (sdl_target_clear(renderer, window->texture) != 0)
+  {
+    return 3;
+  }
+
+  for (size_t index = 0; index < window->child_count; index++)
+  {
+    gui_window_t* child = window->children[index];
+
+    if (gui_window_clear(child) != 0)
+    {
+      return 4;
+    }
+  }
+
+  return 0;
+}
+
+/*
+ *
+ */
+int gui_menu_clear(gui_menu_t* menu)
+{
+  gui_t* gui = menu->gui;
+
+  if (!gui)
+  {
+    return 1;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 2;
+  }
+
+  if (sdl_target_clear(renderer, menu->texture) != 0)
+  {
+    return 3;
+  }
+
+  for (size_t index = 0; index < menu->window_count; index++)
+  {
+    gui_window_t* window = menu->windows[index];
+
+    if (gui_window_clear(window) != 0)
+    {
+      return 4;
+    }
+  }
+
+  return 0;
+}
+
+/*
  * Clear screen
  */
 int gui_clear(gui_t* gui)
@@ -2737,6 +2850,13 @@ int gui_clear(gui_t* gui)
   if (sdl_target_clear(renderer, NULL) != 0)
   {
     return 3;
+  }
+
+  gui_menu_t* menu = gui_active_menu_get(gui);
+
+  if (gui_menu_clear(menu) != 0)
+  {
+    return 4;
   }
 
   return 0;

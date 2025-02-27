@@ -16,6 +16,8 @@
  */
 void game_render(gui_t* gui)
 {
+  gui_clear(gui);
+
   printf("width: %d height: %d\n", gui->width, gui->height);
 
   printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { NULL }, "symbol-one",
@@ -74,6 +76,34 @@ void game_render(gui_t* gui)
 /*
  *
  */
+void* window_border_create(gui_t* gui, gui_window_t* window)
+{
+  window->border = (sdl_border_t) {
+    .thickness = 10,
+    .opacity = 255,
+    .color = (SDL_Color) { 255, 0, 255 }
+  };
+
+  game_render(gui);
+
+  return NULL;
+}
+
+/*
+ *
+ */
+void* window_border_destroy(gui_t* gui, gui_window_t* window)
+{
+  gui->last_window->border = (sdl_border_t) { 0 };
+
+  game_render(gui);
+
+  return NULL;
+}
+
+/*
+ *
+ */
 void* screen_resize_handle(gui_t* gui, int width, int height)
 {
   printf("Screen resized (%d x %d)\n", width, height);
@@ -102,11 +132,15 @@ void* square_click_handle(gui_t* gui, int x, int y)
     if (strcmp(window->name, "second-button") == 0)
     {
       gui_active_menu_set(gui, "second");
+
+      game_render(gui);
     }
 
     if (strcmp(window->name, "first-button") == 0)
     {
       gui_active_menu_set(gui, "first");
+
+      game_render(gui);
     }
   }
   else
@@ -150,6 +184,20 @@ void gui_events_create(gui_t* gui)
     (gui_event_handler_t) {
       .type = GUI_EVENT_HANDLER_RESIZE,
       .handler.resize = &screen_resize_handle
+    })
+  );
+
+  printf("gui_event_create: %d\n", gui_event_create(gui, "window-enter",
+    (gui_event_handler_t) {
+      .type = GUI_EVENT_HANDLER_WINDOW,
+      .handler.window = &window_border_create
+    })
+  );
+
+  printf("gui_event_create: %d\n", gui_event_create(gui, "window-exit",
+    (gui_event_handler_t) {
+      .type = GUI_EVENT_HANDLER_WINDOW,
+      .handler.window = &window_border_destroy
     })
   );
 }
