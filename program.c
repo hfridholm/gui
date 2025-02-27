@@ -48,17 +48,34 @@ void game_render(gui_t* gui)
       (gui_size_t) { GUI_SIZE_MAX }
   ));
   
-  printf("gui_text_render: %d\n", gui_text_render(gui, "first", (char*[]) { "second-button", NULL }, "SEconD",
-    (gui_rect_t) {
-      .width = (gui_size_t) {
-        .type = GUI_SIZE_MAX
-      },
-      .height = (gui_size_t)
-      {
-        .type = GUI_SIZE_NONE
-      }
-    }, "default", (SDL_Color) {0, 255, 255}
-  ));
+  if (gui->curr_window && strcmp(gui->curr_window->name, "second-button") == 0)
+  {
+    gui_text_render(gui, "first", (char*[]) { "second-button", NULL }, "Click?",
+      (gui_rect_t) {
+        .width = (gui_size_t) {
+          .type = GUI_SIZE_MAX
+        },
+        .height = (gui_size_t)
+        {
+          .type = GUI_SIZE_NONE
+        }
+      }, "default", (SDL_Color) {0, 255, 0}
+    );
+  }
+  else
+  {
+    gui_text_render(gui, "first", (char*[]) { "second-button", NULL }, "SEconD",
+      (gui_rect_t) {
+        .width = (gui_size_t) {
+          .type = GUI_SIZE_MAX
+        },
+        .height = (gui_size_t)
+        {
+          .type = GUI_SIZE_NONE
+        }
+      }, "default", (SDL_Color) {0, 255, 255}
+    );
+  }
 
   printf("gui_text_render: %d\n", gui_text_render(gui, "second", (char*[]) { "first-button", NULL }, "FiRSt",
     (gui_rect_t) {
@@ -71,34 +88,12 @@ void game_render(gui_t* gui)
       }
     }, "default", (SDL_Color) {0, 255, 0}
   ));
-}
 
-/*
- *
- */
-void* window_border_create(gui_t* gui, gui_window_t* window)
-{
-  window->border = (sdl_border_t) {
+  gui_window_border_render(gui->curr_window, (sdl_border_t) {
     .thickness = 10,
     .opacity = 255,
     .color = (SDL_Color) { 255, 0, 255 }
-  };
-
-  game_render(gui);
-
-  return NULL;
-}
-
-/*
- *
- */
-void* window_border_destroy(gui_t* gui, gui_window_t* window)
-{
-  gui->last_window->border = (sdl_border_t) { 0 };
-
-  game_render(gui);
-
-  return NULL;
+  });
 }
 
 /*
@@ -116,19 +111,10 @@ void* screen_resize_handle(gui_t* gui, int width, int height)
 /*
  *
  */
-void* square_click_handle(gui_t* gui, int x, int y)
+void* menu_button_handle(gui_t* gui, gui_window_t* window)
 {
-  printf("Square clicked (%d, %d)\n", x, y);
-
-  gui_window_t* window = gui_x_and_y_window_get(gui, x, y);
-
   if (window)
   {
-    int window_x = x - window->sdl_rect.x;
-    int window_y = y - window->sdl_rect.y;
-
-    printf("Mouse down left window (%s) x: %d y: %d\n", window->name, window_x, window_y);
-
     if (strcmp(window->name, "second-button") == 0)
     {
       gui_active_menu_set(gui, "second");
@@ -142,10 +128,6 @@ void* square_click_handle(gui_t* gui, int x, int y)
 
       game_render(gui);
     }
-  }
-  else
-  {
-    printf("Mouse down left menu x: %d y: %d\n", x, y);
   }
 
   return NULL;
@@ -162,14 +144,30 @@ void* key_down_handle(gui_t* gui, int key)
 }
 
 /*
+ *
+ */
+void* window_enter_event_handle(gui_t* gui, gui_window_t* window)
+{
+  game_render(gui);
+}
+
+/*
+ *
+ */
+void* window_exit_event_handle(gui_t* gui, gui_window_t* window)
+{
+  game_render(gui);
+}
+
+/*
  * Create gui events and add handlers
  */
 void gui_events_create(gui_t* gui)
 {
   printf("gui_event_create: %d\n", gui_event_create(gui, "mouse-down-left",
     (gui_event_handler_t) {
-      .type = GUI_EVENT_HANDLER_MOUSE,
-      .handler.mouse = &square_click_handle
+      .type = GUI_EVENT_HANDLER_WINDOW,
+      .handler.window = &menu_button_handle
     })
   );
 
@@ -190,14 +188,14 @@ void gui_events_create(gui_t* gui)
   printf("gui_event_create: %d\n", gui_event_create(gui, "window-enter",
     (gui_event_handler_t) {
       .type = GUI_EVENT_HANDLER_WINDOW,
-      .handler.window = &window_border_create
+      .handler.window = window_enter_event_handle
     })
   );
 
   printf("gui_event_create: %d\n", gui_event_create(gui, "window-exit",
     (gui_event_handler_t) {
       .type = GUI_EVENT_HANDLER_WINDOW,
-      .handler.window = &window_border_destroy
+      .handler.window = window_exit_event_handle
     })
   );
 }
