@@ -117,7 +117,7 @@ void gui_events_create(gui_t* gui)
     })
   );
 
-  printf("gui_event_create: %d\n", gui_event_create(gui, "window-resize",
+  printf("gui_event_create: %d\n", gui_event_create(gui, "resize",
     (gui_event_handler_t) {
       .type = GUI_EVENT_HANDLER_RESIZE,
       .handler.resize = &screen_resize_handle

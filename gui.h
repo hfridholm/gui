@@ -91,6 +91,7 @@ typedef struct gui_assets_t gui_assets_t;
  */
 typedef enum gui_event_handler_type_t
 {
+  GUI_EVENT_HANDLER_GUI,
   GUI_EVENT_HANDLER_MOUSE, // Get position of mouse
   GUI_EVENT_HANDLER_KEY,   // Get pressed key
   GUI_EVENT_HANDLER_RESIZE // Get new size of screen
@@ -104,6 +105,7 @@ typedef struct gui_event_handler_t
   gui_event_handler_type_t type;
   union
   {
+    void* (*gui)   (gui_t* gui);
     void* (*mouse) (gui_t* gui, int x, int y);
     void* (*key)   (gui_t* gui, int key);
     void* (*resize)(gui_t* gui, int width, int height);
@@ -1413,6 +1415,50 @@ int gui_menu_texture_render(gui_menu_t* menu, char* name, gui_size_t x, gui_size
 }
 
 /*
+ * Default event handler for quit event
+ */
+static inline void* _gui_event_quit_handle(gui_t* gui)
+{
+  gui->is_running = false;
+}
+
+/*
+ * Default event handler for resize event
+ */
+static inline void* _gui_event_resize_handle(gui_t* gui, int width, int height)
+{
+  gui_resize(gui, width, height);
+}
+
+/*
+ * Create default event and asign handlers
+ */
+static inline int _gui_events_create(gui_t* gui)
+{
+  if (gui_event_create(gui, "quit",
+    (gui_event_handler_t)
+    {
+      .type = GUI_EVENT_HANDLER_GUI,
+      .handler.gui = &_gui_event_quit_handle
+    }) != 0)
+  {
+    return 1;
+  }
+
+  if (gui_event_create(gui, "resize",
+    (gui_event_handler_t)
+    {
+      .type = GUI_EVENT_HANDLER_RESIZE,
+      .handler.resize = &_gui_event_resize_handle
+    }) != 0)
+  {
+    return 2;
+  }
+
+  return 0;
+}
+
+/*
  * Create gui
  */
 gui_t* gui_create(int width, int height, char* title)
@@ -1438,6 +1484,15 @@ gui_t* gui_create(int width, int height, char* title)
   gui->renderer = sdl_renderer_create(gui->window);
 
   if (!gui->renderer)
+  {
+    sdl_window_destroy(&gui->window);
+
+    free(gui);
+
+    return NULL;
+  }
+
+  if (_gui_events_create(gui) != 0)
   {
     sdl_window_destroy(&gui->window);
 
@@ -1950,13 +2005,7 @@ static inline void gui_mouse_down_event_handle(gui_t* gui, SDL_Event* event)
  */
 static inline void gui_window_resize_event_handle(gui_t* gui, SDL_Event* event)
 {
-  int width = event->window.data1;
-  int height = event->window.data2;
-
-  gui_resize(gui, width, height);
-
-
-  gui_event_t* gui_event = gui_event_get(gui, "window-resize");
+  gui_event_t* gui_event = gui_event_get(gui, "resize");
 
   if (gui_event)
   {
@@ -1991,8 +2040,6 @@ static inline void gui_quit_event_handle(gui_t* gui, SDL_Event* event)
   {
     gui_event_handlers_call(gui, event, gui_event);
   }
-
-  gui->is_running = false;
 }
 
 /*
