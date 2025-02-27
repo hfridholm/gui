@@ -124,6 +124,10 @@ extern void sdl_quit(void);
 
 extern gui_t* gui_create(int width, int height, char* title);
 
+extern void   gui_start(gui_t* gui, int fps);
+
+extern void   gui_stop(gui_t* gui);
+
 extern int    gui_resize(gui_t* gui, int width, int height);
 
 extern void   gui_destroy(gui_t** gui);
@@ -575,6 +579,7 @@ typedef struct gui_t
   gui_assets_t* assets;
   gui_event_t** events;
   size_t        event_count;
+  bool          is_running;
 } gui_t;
 
 /*
@@ -1292,10 +1297,12 @@ static inline int gui_window_render(gui_window_t* window)
       return 5;
     }
 
+    /*
     if (sdl_target_clear(renderer, child->texture) != 0)
     {
       return 6;
     }
+    */
   }
 
   return 0;
@@ -1347,10 +1354,12 @@ static inline int gui_menu_render(gui_menu_t* menu)
       return 5;
     }
 
+    /*
     if (sdl_target_clear(renderer, window->texture) != 0)
     {
       return 6;
     }
+    */
   }
 
   return 0;
@@ -1941,18 +1950,18 @@ static inline void gui_mouse_down_event_handle(gui_t* gui, SDL_Event* event)
  */
 static inline void gui_window_resize_event_handle(gui_t* gui, SDL_Event* event)
 {
+  int width = event->window.data1;
+  int height = event->window.data2;
+
+  gui_resize(gui, width, height);
+
+
   gui_event_t* gui_event = gui_event_get(gui, "window-resize");
 
   if (gui_event)
   {
     gui_event_handlers_call(gui, event, gui_event);
   }
-
-
-  int width = event->window.data1;
-  int height = event->window.data2;
-
-  gui_resize(gui, width, height);
 }
 
 /*
@@ -1972,6 +1981,21 @@ static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
 }
 
 /*
+ * Handle quit event
+ */
+static inline void gui_quit_event_handle(gui_t* gui, SDL_Event* event)
+{
+  gui_event_t* gui_event = gui_event_get(gui, "quit");
+
+  if (gui_event)
+  {
+    gui_event_handlers_call(gui, event, gui_event);
+  }
+
+  gui->is_running = false;
+}
+
+/*
  * Handle event
  */
 void gui_event_handle(gui_t* gui, SDL_Event* event)
@@ -1980,6 +2004,10 @@ void gui_event_handle(gui_t* gui, SDL_Event* event)
 
   switch (event->type)
   {
+    case SDL_QUIT:
+      gui_quit_event_handle(gui, event);
+      break;
+
     case SDL_WINDOWEVENT:
       gui_window_event_handle(gui, event);
       break;
@@ -2097,10 +2125,12 @@ int gui_render(gui_t* gui)
   }
 
   // Clear the screen
+  /*
   if (sdl_target_clear(renderer, NULL) != 0)
   {
     return 3;
   }
+  */
 
   gui_menu_t* menu = gui_active_menu_get(gui);
 
@@ -2116,10 +2146,12 @@ int gui_render(gui_t* gui)
   }
 
   // Clear menu texture
+  /*
   if (sdl_target_clear(renderer, menu->texture) != 0)
   {
     return 6;
   }
+  */
 
   SDL_RenderPresent(renderer);
 
@@ -2235,6 +2267,49 @@ int gui_resize(gui_t* gui, int width, int height)
   }
 
   return 0;
+}
+
+/*
+ * Stop gui, don't render any more frames or handle events
+ */
+void gui_stop(gui_t* gui)
+{
+  if (!gui) return;
+
+  gui->is_running = false;
+}
+
+/*
+ * Start gui by, rendering frames and handle events
+ */
+void gui_start(gui_t* gui, int fps)
+{
+  if (!gui || fps <= 0) return;
+
+  gui->is_running = true;
+
+  Uint32 end_ticks   = 0;
+  Uint32 start_ticks = 0;
+
+  SDL_Event event;
+  SDL_memset(&event, 0, sizeof(event));
+
+  while (gui->is_running)
+  {
+    while (SDL_PollEvent(&event))
+    {
+      gui_event_handle(gui, &event);
+    }
+
+    end_ticks = SDL_GetTicks();
+
+    if (end_ticks - start_ticks >= 1000 / fps)
+    {
+      gui_render(gui);
+
+      start_ticks = end_ticks;
+    }
+  }
 }
 
 #endif // GUI_IMPLEMENT

@@ -11,7 +11,41 @@
 #include <time.h>
 #include <unistd.h>
 
-#define FPS 1
+/*
+ *
+ */
+void game_render(gui_t* gui)
+{
+  printf("width: %d height: %d\n", gui->width, gui->height);
+
+  printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { NULL }, "symbol-one",
+      (gui_size_t) { 0 },
+      (gui_size_t) { 0 },
+      (gui_size_t) { GUI_SIZE_MAX },
+      (gui_size_t) { GUI_SIZE_MAX }
+  ));
+
+  printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "parent", NULL }, "background-field",
+      (gui_size_t) { 0 },
+      (gui_size_t) { 0 },
+      (gui_size_t) { GUI_SIZE_MAX },
+      (gui_size_t) { GUI_SIZE_MAX }
+  ));
+
+  printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "parent", NULL }, "symbol-two",
+      (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.3 },
+      (gui_size_t) { 0 },
+      (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.5 },
+      (gui_size_t) { GUI_SIZE_MAX }
+  ));
+
+  printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "back-button", NULL }, "square-exploded",
+      (gui_size_t) { 0 },
+      (gui_size_t) { 0 },
+      (gui_size_t) { GUI_SIZE_MAX },
+      (gui_size_t) { GUI_SIZE_MAX }
+  ));
+}
 
 /*
  *
@@ -19,6 +53,8 @@
 void* screen_resize_handle(gui_t* gui, int width, int height)
 {
   printf("Screen resized (%d x %d)\n", width, height);
+
+  game_render(gui);
 
   return NULL;
 }
@@ -29,6 +65,25 @@ void* screen_resize_handle(gui_t* gui, int width, int height)
 void* square_click_handle(gui_t* gui, int x, int y)
 {
   printf("Square clicked (%d, %d)\n", x, y);
+
+  gui_window_t* window = gui_x_and_y_window_get(gui, x, y);
+
+  if (window)
+  {
+    int window_x = x - window->sdl_rect.x;
+    int window_y = y - window->sdl_rect.y;
+
+    printf("Mouse down left window (%s) x: %d y: %d\n", window->name, window_x, window_y);
+
+    if (strcmp(window->name, "back-button") == 0)
+    {
+      gui_stop(gui);
+    }
+  }
+  else
+  {
+    printf("Mouse down left menu x: %d y: %d\n", x, y);
+  }
 
   return NULL;
 }
@@ -44,55 +99,11 @@ void* key_down_handle(gui_t* gui, int key)
 }
 
 /*
- * Main function
+ * Create gui events and add handlers
  */
-int main(int argc, char* argv[])
+void gui_events_create(gui_t* gui)
 {
-  if (sdl_init() != 0)
-  {
-    fprintf(stderr, "sdl_init: %s", strerror(errno));
-
-    return 1;
-  }
-
-  gui_t* gui = gui_create(800, 600, "My GUI");
-
-  gui_menu_t* main_menu = gui_menu_create(gui, "main");
-
-
-  gui_rect_t gui_rect = { 0 };
-
-  gui_rect.width = (gui_size_t)
-  {
-    .type = GUI_SIZE_REL,
-    .value.rel = 0.5
-  };
-  
-  gui_rect.height = (gui_size_t)
-  {
-    .type = GUI_SIZE_REL,
-    .value.rel = 0.4
-  };
-
-  gui_rect.xpos = GUI_RIGHT;
-  gui_rect.ypos = GUI_CENTER;
-
-  gui_window_t* parent_window = gui_menu_window_create(main_menu, "parent", gui_rect);
-
-  gui_asset_t assets[] = {
-    { "symbol-one", "../minesweeper/assets/textures/symbol-one.png" },
-    { "symbol-two", "../minesweeper/assets/textures/symbol-two.png" },
-    { "background-field", "../minesweeper/assets/textures/background-field.png" }
-  };
-
-  size_t asset_count = sizeof(assets) / sizeof(assets[0]);
-
-  if (gui_textures_load(gui, assets, asset_count) == 0)
-  {
-    printf("Loaded textures\n");
-  }
-
-  printf("gui_event_create: %d\n", gui_event_create(gui, "window-resize",
+  printf("gui_event_create: %d\n", gui_event_create(gui, "mouse-down-left",
     (gui_event_handler_t) {
       .type = GUI_EVENT_HANDLER_MOUSE,
       .handler.mouse = &square_click_handle
@@ -112,62 +123,109 @@ int main(int argc, char* argv[])
       .handler.resize = &screen_resize_handle
     })
   );
+}
+
+/*
+ * Load all assets for gui
+ */
+void gui_assets_load(gui_t* gui)
+{
+  gui_asset_t assets[] = {
+    { "symbol-one", "../minesweeper/assets/textures/symbol-one.png" },
+    { "symbol-two", "../minesweeper/assets/textures/symbol-two.png" },
+    { "square-exploded", "../minesweeper/assets/textures/square-exploded.png" },
+    { "background-field", "../minesweeper/assets/textures/background-field.png" }
+  };
+
+  size_t asset_count = sizeof(assets) / sizeof(assets[0]);
+
+  if (gui_textures_load(gui, assets, asset_count) == 0)
+  {
+    printf("Loaded textures\n");
+  }
+}
+
+/*
+ * Create menus and windows in gui
+ */
+void gui_windows_create(gui_t* gui)
+{
+  gui_menu_t* main_menu = gui_menu_create(gui, "main");
+
+  gui_menu_window_create(main_menu, "parent",
+    (gui_rect_t) {
+      .width = (gui_size_t) {
+        .type = GUI_SIZE_REL,
+        .value.rel = 0.5
+      },
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_REL,
+        .value.rel = 0.4
+      },
+      .xpos = GUI_RIGHT,
+      .ypos = GUI_CENTER
+    }
+  );
+
+  gui_menu_window_create(main_menu, "back-button",
+    (gui_rect_t) {
+      .width = (gui_size_t) {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 100
+      },
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 100
+      },
+      .xpos = GUI_LEFT,
+      .ypos = GUI_TOP,
+      .margin[GUI_TOP] = (gui_size_t) {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 10
+      },
+      .margin[GUI_LEFT] = (gui_size_t) {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 10
+      }
+    }
+  );
+}
+
+/*
+ * Setup gui by, creating menus and windows
+ */
+void gui_setup(gui_t* gui)
+{
+  gui_windows_create(gui);
+
+  gui_assets_load(gui);
+
+  gui_events_create(gui);
+}
+
+/*
+ * Main function
+ */
+int main(int argc, char* argv[])
+{
+  if (sdl_init() != 0)
+  {
+    fprintf(stderr, "sdl_init: %s", strerror(errno));
+
+    return 1;
+  }
+
+  gui_t* gui = gui_create(800, 600, "Minesweeper");
 
   if (gui)
   {
-    Uint32 end_ticks = 0, start_ticks = 0;
+    gui_setup(gui);
 
-    SDL_Event event;
-    SDL_memset(&event, 0, sizeof(event));
+    game_render(gui);
 
-    bool is_running = true;
-
-    while(is_running)
-    {
-      while(SDL_PollEvent(&event))
-      {
-        if(event.type == SDL_QUIT)
-        {
-          is_running = false;
-
-          break;
-        }
-
-        gui_event_handle(gui, &event);
-      }
-
-      end_ticks = SDL_GetTicks();
-
-      if(end_ticks - start_ticks >= 1000 / FPS)
-      {
-        printf("width: %d height: %d\n", gui->width, gui->height);
-
-        printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { NULL }, "symbol-one",
-            (gui_size_t) { 0 },
-            (gui_size_t) { 0 },
-            (gui_size_t) { GUI_SIZE_MAX },
-            (gui_size_t) { GUI_SIZE_MAX }
-        ));
-
-        printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "parent", NULL }, "background-field",
-            (gui_size_t) { 0 },
-            (gui_size_t) { 0 },
-            (gui_size_t) { GUI_SIZE_MAX },
-            (gui_size_t) { GUI_SIZE_MAX }
-        ));
-
-        printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "parent", NULL }, "symbol-two",
-            (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.3 },
-            (gui_size_t) { 0 },
-            (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.5 },
-            (gui_size_t) { GUI_SIZE_MAX }
-        ));
-
-        printf("gui_render: %d\n", gui_render(gui));
-
-        start_ticks = end_ticks;
-      }
-    }
+    gui_start(gui, 1);
 
     gui_destroy(&gui);
   }
