@@ -44,6 +44,7 @@ typedef struct sdl_border_t
 typedef struct sdl_text_t
 {
   char*     text;
+  char*     font;
   SDL_Color color;
 } sdl_text_t;
 
@@ -184,7 +185,7 @@ extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_name
 
 extern int    gui_chunk_play(gui_t* gui, char* name);
 
-extern int    gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text, gui_rect_t rect, char* font_name, SDL_Color color);
+extern int    gui_text_render(gui_t* gui, char* menu_name, char** window_names, sdl_text_t text, gui_rect_t rect);
 
 extern int    gui_event_create(gui_t* gui, char* name, gui_event_handler_t handler);
 
@@ -1754,9 +1755,9 @@ static inline SDL_Rect sdl_text_rect_create(gui_rect_t gui_rect, int width, int 
 /*
  *
  */
-static inline int gui_window_text_render(gui_window_t* window, char* text, gui_rect_t gui_rect, char* font_name, SDL_Color color)
+static inline int gui_window_text_render(gui_window_t* window, sdl_text_t text, gui_rect_t gui_rect)
 {
-  if (!window || !text || !font_name)
+  if (!window || !text.text || !text.font)
   {
     return 1;
   }
@@ -1775,23 +1776,75 @@ static inline int gui_window_text_render(gui_window_t* window, char* text, gui_r
     return 3;
   }
 
-  gui_font_t* gui_font = gui_font_get(gui, font_name);
+  gui_font_t* gui_font = gui_font_get(gui, text.font);
   
   if (!gui_font)
   {
     return 4;
   }
 
-  SDL_Texture* texture = sdl_text_texture_create(renderer, text, gui_font->font, color);
+  SDL_Texture* texture = sdl_text_texture_create(renderer, text.text, gui_font->font, text.color);
 
   if (!texture)
   {
     return 5;
   }
 
-  SDL_Rect sdl_rect = sdl_text_rect_create(gui_rect, window->sdl_rect.w, window->sdl_rect.h, text, gui_font->font);
+  SDL_Rect sdl_rect = sdl_text_rect_create(gui_rect, window->sdl_rect.w, window->sdl_rect.h, text.text, gui_font->font);
   
   if (sdl_target_texture_render(renderer, window->texture, texture, &sdl_rect) != 0)
+  {
+    sdl_texture_destroy(&texture);
+
+    return 5;
+  }
+
+  sdl_texture_destroy(&texture);
+
+  return 0;
+}
+
+/*
+ *
+ */
+static inline int gui_menu_text_render(gui_menu_t* menu, sdl_text_t text, gui_rect_t gui_rect)
+{
+  if (!menu || !text.text || !text.font)
+  {
+    return 1;
+  }
+
+  gui_t* gui = menu->gui;
+
+  if (!gui)
+  {
+    return 2;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 3;
+  }
+
+  gui_font_t* gui_font = gui_font_get(gui, text.font);
+  
+  if (!gui_font)
+  {
+    return 4;
+  }
+
+  SDL_Texture* texture = sdl_text_texture_create(renderer, text.text, gui_font->font, text.color);
+
+  if (!texture)
+  {
+    return 5;
+  }
+
+  SDL_Rect sdl_rect = sdl_text_rect_create(gui_rect, gui->width, gui->height, text.text, gui_font->font);
+  
+  if (sdl_target_texture_render(renderer, menu->texture, texture, &sdl_rect) != 0)
   {
     sdl_texture_destroy(&texture);
 
@@ -3016,9 +3069,9 @@ int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* t
 /*
  * Render text on either window texture or menu texture
  */
-int gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text, gui_rect_t rect, char* font_name, SDL_Color color)
+int gui_text_render(gui_t* gui, char* menu_name, char** window_names, sdl_text_t text, gui_rect_t rect)
 {
-  if (!gui || !menu_name || !font_name)
+  if (!gui || !menu_name)
   {
     return 1;
   }
@@ -3039,11 +3092,17 @@ int gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text
 
   if (window)
   {
-    gui_window_text_render(window, text, rect, font_name, color);
+    if (gui_window_text_render(window, text, rect) != 0)
+    {
+      return 4;
+    }
   }
   else
   {
-    // gui_menu_text_render(menu, text, rect, font_name, color);
+    if (gui_menu_text_render(menu, text, rect) != 0)
+    {
+      return 5;
+    }
   }
 
   return 0;
