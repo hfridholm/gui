@@ -16,6 +16,9 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
+/*
+ *
+ */
 typedef struct gui_asset_t
 {
   char* name;     // Name of asset
@@ -23,16 +26,16 @@ typedef struct gui_asset_t
 } gui_asset_t;
 
 /*
- * LEFT, RIGHT, TOP, BOTTOM
- * works to index margin and padding
+ *
  */
 typedef enum gui_pos_t
 {
-  GUI_LEFT,
-  GUI_RIGHT,
-  GUI_TOP,
-  GUI_BOTTOM,
-  GUI_CENTER
+  GUI_POS_NONE,
+  GUI_POS_LEFT,
+  GUI_POS_RIGHT,
+  GUI_POS_TOP,
+  GUI_POS_BOTTOM,
+  GUI_POS_CENTER
 } gui_pos_t;
 
 /*
@@ -66,9 +69,14 @@ typedef struct gui_rect_t
 {
   gui_size_t width;
   gui_size_t height;
-  gui_size_t margin[4];
-  gui_pos_t  xpos;
-  gui_pos_t  ypos;
+
+  gui_size_t left;   // Margin to left
+  gui_size_t right;  // Margin to right
+  gui_size_t top;    // Margin on top
+  gui_size_t bottom; // Margin on bottom
+
+  gui_pos_t  xpos;   // Horizontal alignment
+  gui_pos_t  ypos;   // Vertical   alignment
 } gui_rect_t;
 
 /*
@@ -1070,13 +1078,13 @@ static inline int sdl_rect_x_get(gui_pos_t pos, int left_width, int right_width,
 {
   switch (pos)
   {
-    case GUI_LEFT:
+    case GUI_POS_LEFT:
       return left_width;
 
-    case GUI_RIGHT:
+    case GUI_POS_RIGHT:
       return parent_width - w - right_width;
 
-    default: case GUI_CENTER:
+    default: case GUI_POS_CENTER:
       return (float) (parent_width - w) / 2.f;
   }
 }
@@ -1088,13 +1096,13 @@ static inline int sdl_rect_y_get(gui_pos_t pos, int top_height, int bottom_heigh
 {
   switch (pos)
   {
-    case GUI_TOP:
+    case GUI_POS_TOP:
       return top_height;
 
-    case GUI_BOTTOM:
+    case GUI_POS_BOTTOM:
       return parent_height - h - bottom_height;
 
-    default: case GUI_CENTER:
+    default: case GUI_POS_CENTER:
       return (float) (parent_height - h) / 2.f;
   }
 }
@@ -1125,10 +1133,10 @@ static inline int sdl_rect_h_get(int top_height, int bottom_height, int parent_h
  */
 static inline SDL_Rect sdl_rect_create(gui_rect_t gui_rect, int parent_width, int parent_height)
 {
-  int left_width    = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_LEFT]);
-  int right_width   = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_RIGHT]);
-  int top_height    = gui_size_abs_get(parent_height, gui_rect.margin[GUI_TOP]);
-  int bottom_height = gui_size_abs_get(parent_height, gui_rect.margin[GUI_BOTTOM]);
+  int left_width    = gui_size_abs_get(parent_width,  gui_rect.left);
+  int right_width   = gui_size_abs_get(parent_width,  gui_rect.right);
+  int top_height    = gui_size_abs_get(parent_height, gui_rect.top);
+  int bottom_height = gui_size_abs_get(parent_height, gui_rect.bottom);
 
   int w = sdl_rect_w_get(left_width, right_width, parent_width, gui_rect.width);
 
@@ -1147,10 +1155,10 @@ static inline SDL_Rect sdl_rect_create(gui_rect_t gui_rect, int parent_width, in
  */
 static inline SDL_Rect sdl_ratio_rect_create(gui_rect_t gui_rect, int parent_width, int parent_height, float aspect_ratio)
 {
-  int left_width    = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_LEFT]);
-  int right_width   = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_RIGHT]);
-  int top_height    = gui_size_abs_get(parent_height, gui_rect.margin[GUI_TOP]);
-  int bottom_height = gui_size_abs_get(parent_height, gui_rect.margin[GUI_BOTTOM]);
+  int left_width    = gui_size_abs_get(parent_width,  gui_rect.left);
+  int right_width   = gui_size_abs_get(parent_width,  gui_rect.right);
+  int top_height    = gui_size_abs_get(parent_height, gui_rect.top);
+  int bottom_height = gui_size_abs_get(parent_height, gui_rect.bottom);
 
   printf("left_width: %d\n", left_width);
   printf("right_width: %d\n", right_width);

@@ -49,14 +49,13 @@ void game_render(gui_t* gui)
   printf("gui_text_render: %d\n", gui_text_render(gui, "main", (char*[]) { "back-button", NULL }, "BACK",
     (gui_rect_t) {
       .width = (gui_size_t) {
-        .type = GUI_SIZE_ABS,
-        .value.abs = 50
+        .type = GUI_SIZE_MAX
       },
       .height = (gui_size_t)
       {
         .type = GUI_SIZE_NONE
       }
-    }, "default", (SDL_Color) {255, 255, 255}
+    }, "default", (SDL_Color) {0, 255, 255}
   ));
 }
 
@@ -188,8 +187,8 @@ void gui_windows_create(gui_t* gui)
         .type = GUI_SIZE_REL,
         .value.rel = 0.4
       },
-      .xpos = GUI_RIGHT,
-      .ypos = GUI_CENTER
+      .xpos = GUI_POS_RIGHT,
+      .ypos = GUI_POS_CENTER
     }
   );
 
@@ -204,13 +203,13 @@ void gui_windows_create(gui_t* gui)
         .type = GUI_SIZE_ABS,
         .value.abs = 100
       },
-      .xpos = GUI_LEFT,
-      .ypos = GUI_TOP,
-      .margin[GUI_TOP] = (gui_size_t) {
+      .xpos = GUI_POS_LEFT,
+      .ypos = GUI_POS_TOP,
+      .top = (gui_size_t) {
         .type = GUI_SIZE_ABS,
         .value.abs = 10
       },
-      .margin[GUI_LEFT] = (gui_size_t) {
+      .left = (gui_size_t) {
         .type = GUI_SIZE_ABS,
         .value.abs = 10
       }
