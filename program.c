@@ -67,9 +67,9 @@ void game_render(gui_t* gui)
   if (gui_curr_window_name_check(gui, "second-button"))
   {
     gui_text_render(gui, "first", (char*[]) { "second-button", NULL },
-      (sdl_text_t) {
+      (gui_text_t) {
         "Click?", 
-        "default", (sdl_color_t) {0, 255, 0}
+        "default", (gui_color_t) {0, 255, 0}
       },
       (gui_rect_t) {
         .width = (gui_size_t) {
@@ -85,9 +85,9 @@ void game_render(gui_t* gui)
   else
   {
     gui_text_render(gui, "first", (char*[]) { "second-button", NULL },
-      (sdl_text_t) {
+      (gui_text_t) {
         "Second", 
-        "default", (sdl_color_t) {0, 255, 0}
+        "default", (gui_color_t) {0, 255, 0}
       },
       (gui_rect_t) {
         .width = (gui_size_t) {
@@ -101,10 +101,10 @@ void game_render(gui_t* gui)
     );
   }
 
-  printf("gui_text_render: %d\n", gui_text_render(gui, "second", (char*[]) { "first-button", NULL },
-    (sdl_text_t) {
+  gui_text_render(gui, "second", (char*[]) { "first-button", NULL },
+    (gui_text_t) {
       "First", 
-      "default", (sdl_color_t) {0, 255, 0}
+      "default", (gui_color_t) {0, 255, 0}
     },
     (gui_rect_t) {
       .width = (gui_size_t) {
@@ -115,18 +115,18 @@ void game_render(gui_t* gui)
         .type = GUI_SIZE_NONE
       }
     }
-  ));
+  );
 
-  gui_curr_window_border_render(gui, (sdl_border_t) {
+  gui_curr_window_border_render(gui, (gui_border_t) {
     .thickness = 10,
     .opacity = 255,
-    .color = (sdl_color_t) { 255, 0, 255 }
+    .color = (gui_color_t) { 255, 0, 255 }
   });
 
-  printf("gui_text_render: %d\n", gui_text_render(gui, "second", (char*[]) { "text-window", NULL },
-    (sdl_text_t) {
+  gui_text_render(gui, "second", (char*[]) { "text-window", NULL },
+    (gui_text_t) {
       "This is some text", 
-      "default", (sdl_color_t) {0, 255, 0}
+      "default", (gui_color_t) {0, 255, 0}
     },
     (gui_rect_t) {
       .height = (gui_size_t)
@@ -142,12 +142,12 @@ void game_render(gui_t* gui)
         .value.abs = 0
       }
     }
-  ));
+  );
 
-  printf("gui_text_render: %d\n", gui_text_render(gui, "second", (char*[]) { "text-window", NULL },
-    (sdl_text_t) {
+  gui_text_render(gui, "second", (char*[]) { "text-window", NULL },
+    (gui_text_t) {
       "What?", 
-      "default", (sdl_color_t) {0, 255, 0}
+      "default", (gui_color_t) {0, 255, 0}
     },
     (gui_rect_t) {
       .height = (gui_size_t)
@@ -163,7 +163,7 @@ void game_render(gui_t* gui)
         .value.abs = 50
       }
     }
-  ));
+  );
 }
 
 /*
@@ -171,8 +171,6 @@ void game_render(gui_t* gui)
  */
 void* screen_resize_handle(gui_t* gui, int width, int height)
 {
-  printf("Screen resized (%d x %d)\n", width, height);
-
   game_render(gui);
 
   return NULL;
@@ -342,11 +340,11 @@ void gui_menu_first_setup(gui_t* gui)
       .xpos = GUI_POS_RIGHT,
       .ypos = GUI_POS_CENTER
     },
-    (sdl_border_t)
+    (gui_border_t)
     {
       .thickness = 10,
       .opacity = 255,
-      .color = (sdl_color_t) {255, 0, 0}
+      .color = (gui_color_t) {255, 0, 0}
     }
   );
 
@@ -372,7 +370,7 @@ void gui_menu_first_setup(gui_t* gui)
         .value.abs = 10
       }
     },
-    (sdl_border_t) { 0 }
+    (gui_border_t) { 0 }
   );
 }
 
@@ -405,7 +403,7 @@ void gui_menu_second_setup(gui_t* gui)
         .value.abs = 10
       }
     },
-    (sdl_border_t) { 0 }
+    (gui_border_t) { 0 }
   );
 
   gui_menu_window_create(menu, "text-window",
@@ -424,10 +422,10 @@ void gui_menu_second_setup(gui_t* gui)
         .value.abs = 20
       }
     },
-    (sdl_border_t) {
+    (gui_border_t) {
       .thickness = 10,
       .opacity = 255,
-      .color = (sdl_color_t) {200, 255, 0}
+      .color = (gui_color_t) {200, 255, 0}
     }
   );
 }
@@ -452,9 +450,9 @@ void gui_setup(gui_t* gui)
  */
 int main(int argc, char* argv[])
 {
-  if (sdl_init() != 0)
+  if (gui_init() != 0)
   {
-    fprintf(stderr, "sdl_init: %s", strerror(errno));
+    fprintf(stderr, "gui_init: %s", strerror(errno));
 
     return 1;
   }
@@ -469,12 +467,12 @@ int main(int argc, char* argv[])
 
     game_render(gui);
 
-    gui_start(gui, 10);
+    gui_start(gui, 60);
 
     gui_destroy(&gui);
   }
 
-  sdl_quit();
+  gui_quit();
 
   return 0;
 }
