@@ -18,35 +18,35 @@ void game_render(gui_t* gui)
 {
   printf("width: %d height: %d\n", gui->width, gui->height);
 
-  printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { NULL }, "symbol-one",
+  printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { NULL }, "symbol-one",
       (gui_size_t) { 0 },
       (gui_size_t) { 0 },
       (gui_size_t) { GUI_SIZE_MAX },
       (gui_size_t) { GUI_SIZE_MAX }
   ));
 
-  printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "parent", NULL }, "background-field",
+  printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { "parent", NULL }, "background-field",
       (gui_size_t) { 0 },
       (gui_size_t) { 0 },
       (gui_size_t) { GUI_SIZE_MAX },
       (gui_size_t) { GUI_SIZE_MAX }
   ));
 
-  printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "parent", NULL }, "symbol-two",
+  printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { "parent", NULL }, "symbol-two",
       (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.3 },
       (gui_size_t) { 0 },
       (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.5 },
       (gui_size_t) { GUI_SIZE_MAX }
   ));
 
-  printf("gui_texture_render: %d\n", gui_texture_render(gui, "main", (char*[]) { "back-button", NULL }, "square-exploded",
+  printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { "second-button", NULL }, "square-exploded",
       (gui_size_t) { 0 },
       (gui_size_t) { 0 },
       (gui_size_t) { GUI_SIZE_MAX },
       (gui_size_t) { GUI_SIZE_MAX }
   ));
   
-  printf("gui_text_render: %d\n", gui_text_render(gui, "main", (char*[]) { "back-button", NULL }, "BACK",
+  printf("gui_text_render: %d\n", gui_text_render(gui, "first", (char*[]) { "second-button", NULL }, "SEconD",
     (gui_rect_t) {
       .width = (gui_size_t) {
         .type = GUI_SIZE_MAX
@@ -56,6 +56,18 @@ void game_render(gui_t* gui)
         .type = GUI_SIZE_NONE
       }
     }, "default", (SDL_Color) {0, 255, 255}
+  ));
+
+  printf("gui_text_render: %d\n", gui_text_render(gui, "second", (char*[]) { "first-button", NULL }, "FiRSt",
+    (gui_rect_t) {
+      .width = (gui_size_t) {
+        .type = GUI_SIZE_MAX
+      },
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_NONE
+      }
+    }, "default", (SDL_Color) {0, 255, 0}
   ));
 }
 
@@ -87,9 +99,14 @@ void* square_click_handle(gui_t* gui, int x, int y)
 
     printf("Mouse down left window (%s) x: %d y: %d\n", window->name, window_x, window_y);
 
-    if (strcmp(window->name, "back-button") == 0)
+    if (strcmp(window->name, "second-button") == 0)
     {
-      gui_stop(gui);
+      gui_active_menu_set(gui, "second");
+    }
+
+    if (strcmp(window->name, "first-button") == 0)
+    {
+      gui_active_menu_set(gui, "first");
     }
   }
   else
@@ -172,11 +189,11 @@ void gui_assets_load(gui_t* gui)
 /*
  * Create menus and windows in gui
  */
-void gui_windows_create(gui_t* gui)
+void gui_menu_first_setup(gui_t* gui)
 {
-  gui_menu_t* main_menu = gui_menu_create(gui, "main");
+  gui_menu_t* menu = gui_menu_create(gui, "first");
 
-  gui_menu_window_create(main_menu, "parent",
+  gui_menu_window_create(menu, "parent",
     (gui_rect_t) {
       .width = (gui_size_t) {
         .type = GUI_SIZE_REL,
@@ -189,10 +206,49 @@ void gui_windows_create(gui_t* gui)
       },
       .xpos = GUI_POS_RIGHT,
       .ypos = GUI_POS_CENTER
+    },
+    (sdl_border_t)
+    {
+      .thickness = 10,
+      .opacity = 255,
+      .color = (SDL_Color) {255, 0, 255}
     }
   );
 
-  gui_menu_window_create(main_menu, "back-button",
+  gui_menu_window_create(menu, "second-button",
+    (gui_rect_t) {
+      .width = (gui_size_t) {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 100
+      },
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 100
+      },
+      .xpos = GUI_POS_RIGHT,
+      .ypos = GUI_POS_TOP,
+      .top = (gui_size_t) {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 10
+      },
+      .left = (gui_size_t) {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 10
+      }
+    },
+    (sdl_border_t) { 0 }
+  );
+}
+
+/*
+ *
+ */
+void gui_menu_second_setup(gui_t* gui)
+{
+  gui_menu_t* menu = gui_menu_create(gui, "second");
+
+  gui_menu_window_create(menu, "first-button",
     (gui_rect_t) {
       .width = (gui_size_t) {
         .type = GUI_SIZE_ABS,
@@ -213,7 +269,8 @@ void gui_windows_create(gui_t* gui)
         .type = GUI_SIZE_ABS,
         .value.abs = 10
       }
-    }
+    },
+    (sdl_border_t) { 0 }
   );
 }
 
@@ -222,7 +279,10 @@ void gui_windows_create(gui_t* gui)
  */
 void gui_setup(gui_t* gui)
 {
-  gui_windows_create(gui);
+  gui_menu_first_setup(gui);
+
+  gui_menu_second_setup(gui);
+
 
   gui_assets_load(gui);
 
@@ -246,6 +306,8 @@ int main(int argc, char* argv[])
   if (gui)
   {
     gui_setup(gui);
+
+    gui_active_menu_set(gui, "first");
 
     game_render(gui);
 

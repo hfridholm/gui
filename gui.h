@@ -31,6 +31,16 @@
 /*
  *
  */
+typedef struct sdl_border_t
+{
+  int       thickness;
+  int       opacity;
+  SDL_Color color;
+} sdl_border_t;
+
+/*
+ *
+ */
 typedef struct gui_asset_t
 {
   char* name;     // Name of asset
@@ -157,21 +167,27 @@ extern void   gui_destroy(gui_t** gui);
 
 extern int    gui_render(gui_t* gui);
 
+extern int    gui_clear(gui_t* gui);
+
 extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
 
 extern int    gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text, gui_rect_t rect, char* font_name, SDL_Color color);
 
 extern int    gui_event_create(gui_t* gui, char* name, gui_event_handler_t handler);
 
+extern void   gui_user_event_trigger(gui_t* gui, char* name);
+
 /*
  * Menu
  */
+
+extern void          gui_active_menu_set(gui_t* gui, char* name);
 
 extern gui_menu_t*   gui_menu_create(gui_t* gui, char* name);
 
 extern int           gui_menu_destroy(gui_t* gui, const char* name);
 
-extern gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect);
+extern gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect, sdl_border_t border);
 
 extern int           gui_menu_window_destroy(gui_menu_t* menu, char* name);
 
@@ -466,6 +482,92 @@ static inline int sdl_target_clear(SDL_Renderer* renderer, SDL_Texture* target)
 }
 
 /*
+ *
+ */
+static inline int sdl_rect_render(SDL_Renderer* renderer, SDL_Rect* rect)
+{
+  if (SDL_RenderFillRect(renderer, rect) != 0)
+  {
+    fprintf(stderr, "SDL_RenderFillRect: %s\n", SDL_GetError());
+
+    return 1;
+  }
+
+  return 0;
+}
+
+/*
+ * Render a border around rect
+ */
+static inline int sdl_border_render(SDL_Renderer* renderer, sdl_border_t border, SDL_Rect rect)
+{
+  SDL_Color color = border.color;
+
+  if (SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, border.opacity) != 0)
+  {
+    return 1;
+  }
+
+  // Draw top border
+  SDL_Rect top =
+  {
+    rect.x - border.thickness,
+    rect.y - border.thickness,
+    rect.w + border.thickness * 2,
+    border.thickness
+  };
+
+  if (sdl_rect_render(renderer, &top) != 0)
+  {
+    return 2;
+  }
+
+  // Draw bottom border
+  SDL_Rect bottom =
+  {
+    rect.x - border.thickness,
+    rect.y + rect.h,
+    rect.w + border.thickness * 2,
+    border.thickness
+  };
+  
+  if (sdl_rect_render(renderer, &bottom) != 0)
+  {
+    return 3;
+  }
+
+  // Draw left border
+  SDL_Rect left =
+  {
+    rect.x - border.thickness,
+    rect.y - border.thickness,
+    border.thickness,
+    rect.h + border.thickness * 2
+  };
+  
+  if (sdl_rect_render(renderer, &left) != 0)
+  {
+    return 4;
+  }
+
+  // Draw right border
+  SDL_Rect right =
+  {
+    rect.x + rect.w,
+    rect.y - border.thickness,
+    border.thickness,
+    rect.h + border.thickness * 2
+  };
+  
+  if (sdl_rect_render(renderer, &right) != 0)
+  {
+    return 5;
+  }
+
+  return 0;
+}
+
+/*
  * Render SDL Texture
  */
 static inline int sdl_texture_render(SDL_Renderer* renderer, SDL_Texture* texture, SDL_Rect* rect)
@@ -480,6 +582,30 @@ static inline int sdl_texture_render(SDL_Renderer* renderer, SDL_Texture* textur
   }
 
   return status;
+}
+
+/*
+ * Render a border around rect to target texture
+ */
+static inline int sdl_target_border_render(SDL_Renderer* renderer, SDL_Texture* target, sdl_border_t border, SDL_Rect rect)
+{
+  SDL_Texture* old_target = SDL_GetRenderTarget(renderer);
+
+  // 1. Temporarly set the new target
+  if (sdl_target_set(renderer, target) != 0)
+  {
+    return 1;
+  }
+
+  int status = sdl_border_render(renderer, border, rect);
+
+  // 2. Change back to the old target
+  if (sdl_target_set(renderer, old_target) != 0)
+  {
+    return 2;
+  }
+
+  return (status == 0) ? 0 : 3;
 }
 
 /*
@@ -588,6 +714,7 @@ typedef struct gui_window_t
   gui_rect_t     gui_rect;
   SDL_Rect       sdl_rect;
   SDL_Texture*   texture;
+  sdl_border_t   border;
   gui_window_t** children;
   size_t         child_count;
   bool           is_child;
@@ -1521,7 +1648,7 @@ int gui_menu_window_destroy(gui_menu_t* menu, char* name)
 /*
  * Create window and add it to menu
  */
-gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect)
+gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gui_rect, sdl_border_t border)
 {
   if (!menu || !name)
   {
@@ -1546,6 +1673,8 @@ gui_window_t* gui_menu_window_create(gui_menu_t* menu, char* name, gui_rect_t gu
 
   window->name = name;
   window->gui  = gui;
+
+  window->border = border;
 
   window->is_child = false;
   window->parent.menu = menu;
@@ -1696,6 +1825,16 @@ static inline int gui_window_render(gui_window_t* window)
  */
 
 /*
+ * Set active menu
+ */
+void gui_active_menu_set(gui_t* gui, char* name)
+{
+  gui->menu_name = name;
+
+  gui_clear(gui);
+}
+
+/*
  * Render menu with all of it's windows and child windows
  *
  * Clear the textures of the windows that are rendered
@@ -1735,6 +1874,11 @@ static inline int gui_menu_render(gui_menu_t* menu)
     if (sdl_target_texture_render(renderer, menu->texture, window->texture, &window->sdl_rect) != 0)
     {
       return 5;
+    }
+
+    if (sdl_target_border_render(renderer, menu->texture, window->border, window->sdl_rect) != 0)
+    {
+      return 6;
     }
 
     /*
@@ -2301,6 +2445,27 @@ static inline void gui_event_handler_call(gui_t* gui, SDL_Event* event, gui_even
 }
 
 /*
+ * Trigger event by calling handlers of type GUI_EVENT_HANDLER_GUI,
+ * which does not require any input data
+ */
+void gui_user_event_trigger(gui_t* gui, char* name)
+{
+  gui_event_t* gui_event = gui_event_get(gui, name);
+
+  if (!gui_event) return;
+
+  for (size_t index = 0; index < gui_event->handler_count; index++)
+  {
+    gui_event_handler_t handler = gui_event->handlers[index];
+
+    if (handler.type == GUI_EVENT_HANDLER_GUI)
+    {
+      handler.handler.gui(gui);
+    }
+  }
+}
+
+/*
  *
  */
 static inline void gui_event_handlers_call(gui_t* gui, SDL_Event* event, gui_event_t* gui_event)
@@ -2547,6 +2712,31 @@ int gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text
   else
   {
     // gui_menu_text_render(menu, text, rect, font_name, color);
+  }
+
+  return 0;
+}
+
+/*
+ * Clear screen
+ */
+int gui_clear(gui_t* gui)
+{
+  if (!gui)
+  {
+    return 1;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 2;
+  }
+
+  if (sdl_target_clear(renderer, NULL) != 0)
+  {
+    return 3;
   }
 
   return 0;
