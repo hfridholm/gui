@@ -22,20 +22,32 @@
 #define GUI_H
 
 #include <stddef.h>
-
-#include <SDL2/SDL.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
+/*
+ * This is the exact same structure as SDL_Color,
+ * but this way, the user doesn't need SDL.h
+ */
+typedef struct sdl_color_t
+{
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t a;
+} sdl_color_t;
 
 /*
  *
  */
 typedef struct sdl_border_t
 {
-  int       thickness;
-  int       opacity;
-  SDL_Color color;
+  int         thickness;
+  int         opacity;
+  sdl_color_t color;
 } sdl_border_t;
 
 /*
@@ -43,9 +55,9 @@ typedef struct sdl_border_t
  */
 typedef struct sdl_text_t
 {
-  char*     text;
-  char*     font;
-  SDL_Color color;
+  char*       text;
+  char*       font;
+  sdl_color_t color;
 } sdl_text_t;
 
 /*
@@ -211,24 +223,25 @@ extern int           gui_menu_window_destroy(gui_menu_t* menu, char* name);
  * Window
  */
 
-extern int           gui_window_border_render(gui_window_t* window, sdl_border_t border);
+extern bool          gui_window_name_check(gui_window_t* window, char* name);
+
+extern bool          gui_curr_window_name_check(gui_t* gui, char* name);
+
+extern int           gui_curr_window_border_render(gui_t* gui, sdl_border_t border);
 
 extern gui_window_t* gui_window_child_create(gui_window_t* window, char* name, gui_rect_t gui_rect);
 
 extern int           gui_window_child_destroy(gui_window_t* window, char* name);
 
-extern gui_window_t* gui_x_and_y_window_get(gui_t* gui, int x, int y);
 /*
  * Assets
  */
 
-extern int gui_texture_load(gui_t* gui, gui_asset_t asset);
-
 extern int gui_textures_load(gui_t* gui, gui_asset_t* assets, size_t count);
 
-extern int gui_font_load(gui_t* gui, gui_asset_t asset);
-
 extern int gui_fonts_load(gui_t* gui, gui_asset_t* assets, size_t count);
+
+extern int gui_chunks_load(gui_t* gui, gui_asset_t* assets, size_t count);
 
 #endif // GUI_H
 
@@ -518,11 +531,24 @@ static inline int sdl_rect_render(SDL_Renderer* renderer, SDL_Rect* rect)
 }
 
 /*
+ * Convert sdl_color_t to correct SDL_Color
+ */
+static inline SDL_Color sdl_color_create(sdl_color_t color)
+{
+  return (SDL_Color) {
+    .r = color.r,
+    .g = color.g,
+    .b = color.b,
+    .a = color.a
+  };
+}
+
+/*
  * Render a border around rect
  */
 static inline int sdl_border_render(SDL_Renderer* renderer, sdl_border_t border, SDL_Rect rect)
 {
-  SDL_Color color = border.color;
+  SDL_Color color = sdl_color_create(border.color);
 
   if (SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, border.opacity) != 0)
   {
@@ -1337,6 +1363,8 @@ int gui_chunk_play(gui_t* gui, char* name)
 
 /*
  * Get texture of text
+ *
+ * Maybe: replace with sdl_text_t text 
  */
 static inline SDL_Texture* sdl_text_texture_create(SDL_Renderer* renderer, const char* text, TTF_Font* font, SDL_Color color)
 {
@@ -1738,7 +1766,9 @@ static inline int gui_window_text_render(gui_window_t* window, sdl_text_t text, 
     return 4;
   }
 
-  SDL_Texture* texture = sdl_text_texture_create(renderer, text.text, gui_font->font, text.color);
+  SDL_Color sdl_color = sdl_color_create(text.color);
+
+  SDL_Texture* texture = sdl_text_texture_create(renderer, text.text, gui_font->font, sdl_color);
 
   if (!texture)
   {
@@ -1804,7 +1834,9 @@ static inline int gui_menu_text_render(gui_menu_t* menu, sdl_text_t text, gui_re
     return 4;
   }
 
-  SDL_Texture* texture = sdl_text_texture_create(renderer, text.text, gui_font->font, text.color);
+  SDL_Color sdl_color = sdl_color_create(text.color);
+
+  SDL_Texture* texture = sdl_text_texture_create(renderer, text.text, gui_font->font, sdl_color);
 
   if (!texture)
   {
@@ -2184,6 +2216,33 @@ int gui_window_border_render(gui_window_t* window, sdl_border_t border)
   }
 
   return 0;
+}
+
+/*
+ *
+ */
+int gui_curr_window_border_render(gui_t* gui, sdl_border_t border)
+{
+  return gui_window_border_render(gui->curr_window, border);
+}
+
+/*
+ *
+ */
+bool gui_window_name_check(gui_window_t* window, char* name)
+{
+  if (!window || !name) return false;
+
+  return (strcmp(window->name, name) == 0);
+}
+/*
+ *
+ */
+bool gui_curr_window_name_check(gui_t* gui, char* name)
+{
+  if (!gui || !name) return false;
+
+  return gui_window_name_check(gui->curr_window, name);
 }
 
 /*

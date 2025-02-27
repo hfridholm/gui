@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <time.h>
 #include <unistd.h>
+#include <string.h>
 
 /*
  *
@@ -64,12 +64,12 @@ void game_render(gui_t* gui)
     }
   );
   
-  if (gui->curr_window && strcmp(gui->curr_window->name, "second-button") == 0)
+  if (gui_curr_window_name_check(gui, "second-button"))
   {
     gui_text_render(gui, "first", (char*[]) { "second-button", NULL },
       (sdl_text_t) {
         "Click?", 
-        "default", (SDL_Color) {0, 255, 0}
+        "default", (sdl_color_t) {0, 255, 0}
       },
       (gui_rect_t) {
         .width = (gui_size_t) {
@@ -87,7 +87,7 @@ void game_render(gui_t* gui)
     gui_text_render(gui, "first", (char*[]) { "second-button", NULL },
       (sdl_text_t) {
         "Second", 
-        "default", (SDL_Color) {0, 255, 0}
+        "default", (sdl_color_t) {0, 255, 0}
       },
       (gui_rect_t) {
         .width = (gui_size_t) {
@@ -104,7 +104,7 @@ void game_render(gui_t* gui)
   printf("gui_text_render: %d\n", gui_text_render(gui, "second", (char*[]) { "first-button", NULL },
     (sdl_text_t) {
       "First", 
-      "default", (SDL_Color) {0, 255, 0}
+      "default", (sdl_color_t) {0, 255, 0}
     },
     (gui_rect_t) {
       .width = (gui_size_t) {
@@ -117,16 +117,16 @@ void game_render(gui_t* gui)
     }
   ));
 
-  gui_window_border_render(gui->curr_window, (sdl_border_t) {
+  gui_curr_window_border_render(gui, (sdl_border_t) {
     .thickness = 10,
     .opacity = 255,
-    .color = (SDL_Color) { 255, 0, 255 }
+    .color = (sdl_color_t) { 255, 0, 255 }
   });
 
   printf("gui_text_render: %d\n", gui_text_render(gui, "second", (char*[]) { "text-window", NULL },
     (sdl_text_t) {
       "This is some text", 
-      "default", (SDL_Color) {0, 255, 0}
+      "default", (sdl_color_t) {0, 255, 0}
     },
     (gui_rect_t) {
       .height = (gui_size_t)
@@ -147,7 +147,7 @@ void game_render(gui_t* gui)
   printf("gui_text_render: %d\n", gui_text_render(gui, "second", (char*[]) { "text-window", NULL },
     (sdl_text_t) {
       "What?", 
-      "default", (SDL_Color) {0, 255, 0}
+      "default", (sdl_color_t) {0, 255, 0}
     },
     (gui_rect_t) {
       .height = (gui_size_t)
@@ -185,7 +185,7 @@ void* menu_button_handle(gui_t* gui, gui_window_t* window)
 {
   if (window)
   {
-    if (strcmp(window->name, "second-button") == 0)
+    if (gui_window_name_check(window, "second-button"))
     {
       gui_chunk_play(gui, "square-swept");
 
@@ -194,7 +194,7 @@ void* menu_button_handle(gui_t* gui, gui_window_t* window)
       game_render(gui);
     }
 
-    if (strcmp(window->name, "first-button") == 0)
+    if (gui_window_name_check(window, "first-button"))
     {
       gui_chunk_play(gui, "square-flagged");
 
@@ -346,7 +346,7 @@ void gui_menu_first_setup(gui_t* gui)
     {
       .thickness = 10,
       .opacity = 255,
-      .color = (SDL_Color) {255, 0, 0}
+      .color = (sdl_color_t) {255, 0, 0}
     }
   );
 
@@ -427,7 +427,7 @@ void gui_menu_second_setup(gui_t* gui)
     (sdl_border_t) {
       .thickness = 10,
       .opacity = 255,
-      .color = (SDL_Color) {200, 255, 0}
+      .color = (sdl_color_t) {200, 255, 0}
     }
   );
 }
