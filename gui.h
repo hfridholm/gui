@@ -4,6 +4,18 @@
  * Written by Hampus Fridholm
  *
  * Last updated: 2025-02-26
+ *
+ *
+ * Events
+ *
+ * mouse-down-left
+ * mouse-down-right
+ * mouse-up-left
+ * mouse-up-right
+ * key-down
+ * key-up
+ * resize
+ * quit
  */
 
 #ifndef GUI_H
@@ -149,8 +161,6 @@ extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_name
 
 extern int    gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text, gui_rect_t rect, char* font_name, SDL_Color color);
 
-extern void   gui_event_handle(gui_t* gui, SDL_Event* event);
-
 extern int    gui_event_create(gui_t* gui, char* name, gui_event_handler_t handler);
 
 /*
@@ -173,6 +183,7 @@ extern gui_window_t* gui_window_child_create(gui_window_t* window, char* name, g
 
 extern int           gui_window_child_destroy(gui_window_t* window, char* name);
 
+extern gui_window_t* gui_x_and_y_window_get(gui_t* gui, int x, int y);
 /*
  * Assets
  */
@@ -180,6 +191,10 @@ extern int           gui_window_child_destroy(gui_window_t* window, char* name);
 extern int gui_texture_load(gui_t* gui, gui_asset_t asset);
 
 extern int gui_textures_load(gui_t* gui, gui_asset_t* assets, size_t count);
+
+extern int gui_font_load(gui_t* gui, gui_asset_t asset);
+
+extern int gui_fonts_load(gui_t* gui, gui_asset_t* assets, size_t count);
 
 #endif // GUI_H
 
@@ -2222,7 +2237,7 @@ static inline gui_window_t* gui_window_x_and_y_child_get(gui_window_t* window, i
 /*
  * Try to get the window which x and y is pointing at
  */
-static inline gui_window_t* gui_x_and_y_window_get(gui_t* gui, int x, int y)
+gui_window_t* gui_x_and_y_window_get(gui_t* gui, int x, int y)
 {
   gui_menu_t* menu = gui_active_menu_get(gui);
 
@@ -2247,49 +2262,6 @@ static inline gui_window_t* gui_x_and_y_window_get(gui_t* gui, int x, int y)
   }
 
   return NULL;
-}
-
-/*
- *
- */
-static inline void gui_mouse_up_right_event_handle(gui_t* gui, SDL_Event* event)
-{
-  int x = event->button.x;
-  int y = event->button.y;
-
-  gui_window_t* window = gui_x_and_y_window_get(gui, x, y);
-
-  if (window)
-  {
-    int window_x = x - window->sdl_rect.x;
-    int window_y = y - window->sdl_rect.y;
-
-    printf("Mouse up right window (%s) x: %d y: %d\n", window->name, window_x, window_y);
-  }
-  else
-  {
-    printf("Mouse up right menu x: %d y: %d\n", x, y);
-  }
-}
-
-/*
- *
- */
-static inline void gui_mouse_up_event_handle(gui_t* gui, SDL_Event* event)
-{
-  switch (event->button.button)
-  {
-    case SDL_BUTTON_LEFT:
-      // gui_mouse_up_left_event_handle(gui, event);
-      break;
-
-    case SDL_BUTTON_RIGHT:
-      gui_mouse_up_right_event_handle(gui, event);
-      break;
-
-    default:
-      break;
-  }
 }
 
 /*
@@ -2344,13 +2316,32 @@ static inline void gui_event_handlers_call(gui_t* gui, SDL_Event* event, gui_eve
 /*
  *
  */
-static inline void gui_mouse_down_left_event_handle(gui_t* gui, SDL_Event* event)
+static inline void gui_event_trigger(gui_t* gui, SDL_Event* event, char* name)
 {
-  gui_event_t* gui_event = gui_event_get(gui, "mouse-down-left");
+  gui_event_t* gui_event = gui_event_get(gui, name);
 
-  if (gui_event)
+  if (!gui_event) return;
+
+  gui_event_handlers_call(gui, event, gui_event);
+}
+
+/*
+ *
+ */
+static inline void gui_mouse_up_event_handle(gui_t* gui, SDL_Event* event)
+{
+  switch (event->button.button)
   {
-    gui_event_handlers_call(gui, event, gui_event);
+    case SDL_BUTTON_LEFT:
+      gui_event_trigger(gui, event, "mouse-up-left");
+      break;
+
+    case SDL_BUTTON_RIGHT:
+      gui_event_trigger(gui, event, "mouse-up-right");
+      break;
+
+    default:
+      break;
   }
 }
 
@@ -2362,28 +2353,15 @@ static inline void gui_mouse_down_event_handle(gui_t* gui, SDL_Event* event)
   switch (event->button.button)
   {
     case SDL_BUTTON_LEFT:
-      gui_mouse_down_left_event_handle(gui, event);
+      gui_event_trigger(gui, event, "mouse-down-left");
       break;
 
     case SDL_BUTTON_RIGHT:
-      // gui_mouse_down_right_event_handle(gui, event);
+      gui_event_trigger(gui, event, "mouse-down-right");
       break;
 
     default:
       break;
-  }
-}
-
-/*
- *
- */
-static inline void gui_window_resize_event_handle(gui_t* gui, SDL_Event* event)
-{
-  gui_event_t* gui_event = gui_event_get(gui, "resize");
-
-  if (gui_event)
-  {
-    gui_event_handlers_call(gui, event, gui_event);
   }
 }
 
@@ -2395,7 +2373,7 @@ static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
   switch (event->window.event)
   {
     case SDL_WINDOWEVENT_RESIZED: case SDL_WINDOWEVENT_SIZE_CHANGED:
-      gui_window_resize_event_handle(gui, event);
+      gui_event_trigger(gui, event, "resize");
       break;
 
     default:
@@ -2404,29 +2382,16 @@ static inline void gui_window_event_handle(gui_t* gui, SDL_Event* event)
 }
 
 /*
- * Handle quit event
- */
-static inline void gui_quit_event_handle(gui_t* gui, SDL_Event* event)
-{
-  gui_event_t* gui_event = gui_event_get(gui, "quit");
-
-  if (gui_event)
-  {
-    gui_event_handlers_call(gui, event, gui_event);
-  }
-}
-
-/*
  * Handle event
  */
-void gui_event_handle(gui_t* gui, SDL_Event* event)
+static inline void gui_event_handle(gui_t* gui, SDL_Event* event)
 {
   if (!event) return;
 
   switch (event->type)
   {
     case SDL_QUIT:
-      gui_quit_event_handle(gui, event);
+      gui_event_trigger(gui, event, "quit");
       break;
 
     case SDL_WINDOWEVENT:
@@ -2439,6 +2404,14 @@ void gui_event_handle(gui_t* gui, SDL_Event* event)
 
     case SDL_MOUSEBUTTONUP:
       gui_mouse_up_event_handle(gui, event);
+      break;
+
+    case SDL_KEYDOWN:
+      gui_event_trigger(gui, event, "key-down");
+      break;
+
+    case SDL_KEYUP:
+      gui_event_trigger(gui, event, "key-up");
       break;
 
     default:

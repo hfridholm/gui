@@ -122,7 +122,7 @@ void gui_events_create(gui_t* gui)
     })
   );
 
-  printf("gui_event_create: %d\n", gui_event_create(gui, "mouse-down-left",
+  printf("gui_event_create: %d\n", gui_event_create(gui, "key-down",
     (gui_event_handler_t) {
       .type = GUI_EVENT_HANDLER_KEY,
       .handler.key = &key_down_handle
