@@ -102,6 +102,8 @@ typedef struct gui_rect_t
   gui_size_t width;
   gui_size_t height;
 
+  float aspect_ratio; // Backup aspect ratio
+
   gui_size_t left;   // Margin to left
   gui_size_t right;  // Margin to right
   gui_size_t top;    // Margin on top
@@ -181,7 +183,7 @@ extern int    gui_render(gui_t* gui);
 
 extern int    gui_clear(gui_t* gui);
 
-extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
+extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_rect_t rect);
 
 extern int    gui_chunk_play(gui_t* gui, char* name);
 
@@ -1479,8 +1481,8 @@ static inline int sdl_rect_h_get(int top_height, int bottom_height, int parent_h
 }
 
 /*
- * Convert GUI Rect to SDL Rect,
- * with the help of parent width and height
+ * Create SDL Rect from gui_rect,
+ * with the help of parent width and height and aspect ratio
  */
 static inline SDL_Rect sdl_rect_create(gui_rect_t gui_rect, int parent_width, int parent_height)
 {
@@ -1493,38 +1495,17 @@ static inline SDL_Rect sdl_rect_create(gui_rect_t gui_rect, int parent_width, in
 
   int h = sdl_rect_h_get(top_height, bottom_height, parent_height, gui_rect.height);
 
-  int x = sdl_rect_x_get(gui_rect.xpos, left_width, right_width, parent_width, w);
-
-  int y = sdl_rect_y_get(gui_rect.ypos, top_height, bottom_height, parent_height, h);
-  
-  return (SDL_Rect) {x, y, w, h};
-}
-
-/*
- * Create SDL Rect from gui_rect,
- * with the help of parent width and height and aspect ratio
- */
-static inline SDL_Rect sdl_ratio_rect_create(gui_rect_t gui_rect, int parent_width, int parent_height, float aspect_ratio)
-{
-  int left_width    = gui_size_abs_get(parent_width,  gui_rect.left);
-  int right_width   = gui_size_abs_get(parent_width,  gui_rect.right);
-  int top_height    = gui_size_abs_get(parent_height, gui_rect.top);
-  int bottom_height = gui_size_abs_get(parent_height, gui_rect.bottom);
-
-  int w = sdl_rect_w_get(left_width, right_width, parent_width, gui_rect.width);
-
-  int h = sdl_rect_h_get(top_height, bottom_height, parent_height, gui_rect.height);
-
-
-  if (gui_rect.width.type == GUI_SIZE_NONE)
+  if (gui_rect.aspect_ratio)
   {
-    w = (float) h * aspect_ratio;
+    if (gui_rect.width.type == GUI_SIZE_NONE)
+    {
+      w = (float) h * gui_rect.aspect_ratio;
+    }
+    else if (gui_rect.height.type == GUI_SIZE_NONE)
+    {
+      h = (float) w / gui_rect.aspect_ratio;
+    }
   }
-  else if (gui_rect.height.type == GUI_SIZE_NONE)
-  {
-    h = (float) w / aspect_ratio;
-  }
-
 
   int x = sdl_rect_x_get(gui_rect.xpos, left_width, right_width, parent_width, w);
 
@@ -1688,7 +1669,7 @@ int gui_window_child_destroy(gui_window_t* window, char* name)
 /*
  * Render loaded texture (name) to window texture
  */
-int gui_window_texture_render(gui_window_t* window, char* name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h)
+int gui_window_texture_render(gui_window_t* window, char* name, gui_rect_t gui_rect)
 {
   if (!window || !name)
   {
@@ -1716,13 +1697,7 @@ int gui_window_texture_render(gui_window_t* window, char* name, gui_size_t x, gu
     return 4;
   }
 
-  SDL_Rect sdl_rect =
-  {
-    .x = gui_size_abs_get(window->sdl_rect.w, x),
-    .y = gui_size_abs_get(window->sdl_rect.h, y),
-    .w = gui_size_abs_get(window->sdl_rect.w, w),
-    .h = gui_size_abs_get(window->sdl_rect.h, h)
-  };
+  SDL_Rect sdl_rect = sdl_rect_create(gui_rect, window->sdl_rect.w, window->sdl_rect.h);
 
   if (sdl_target_texture_render(renderer, window->texture, gui_texture->texture, &sdl_rect) != 0)
   {
@@ -1730,26 +1705,6 @@ int gui_window_texture_render(gui_window_t* window, char* name, gui_size_t x, gu
   }
 
   return 0;
-}
-
-/*
- *
- */
-static inline SDL_Rect sdl_text_rect_create(gui_rect_t gui_rect, int width, int height, char* text, TTF_Font* font)
-{
-  int textw;
-  int texth;
-
-  if (sdl_text_w_and_h_get(&textw, &texth, text, font) == 0)
-  {
-    float aspect_ratio = (float) textw / (float) texth;
-
-    return sdl_ratio_rect_create(gui_rect, width, height, aspect_ratio);
-  }
-
-  fprintf(stderr, "sdl_text_w_and_h_get: %s\n", strerror(errno));
-
-  return sdl_rect_create(gui_rect, width, height);
 }
 
 /*
@@ -1790,7 +1745,21 @@ static inline int gui_window_text_render(gui_window_t* window, sdl_text_t text, 
     return 5;
   }
 
-  SDL_Rect sdl_rect = sdl_text_rect_create(gui_rect, window->sdl_rect.w, window->sdl_rect.h, text.text, gui_font->font);
+  int textw;
+  int texth;
+
+  if (sdl_text_w_and_h_get(&textw, &texth, text.text, gui_font->font) != 0)
+  {
+    fprintf(stderr, "sdl_text_w_and_h_get: %s\n", strerror(errno));
+
+    sdl_texture_destroy(&texture);
+
+    return 6;
+  }
+
+  gui_rect.aspect_ratio = (float) textw / (float) texth;
+
+  SDL_Rect sdl_rect = sdl_rect_create(gui_rect, window->sdl_rect.w, window->sdl_rect.h);
   
   if (sdl_target_texture_render(renderer, window->texture, texture, &sdl_rect) != 0)
   {
@@ -1842,8 +1811,23 @@ static inline int gui_menu_text_render(gui_menu_t* menu, sdl_text_t text, gui_re
     return 5;
   }
 
-  SDL_Rect sdl_rect = sdl_text_rect_create(gui_rect, gui->width, gui->height, text.text, gui_font->font);
+  int textw;
+  int texth;
+
+  if (sdl_text_w_and_h_get(&textw, &texth, text.text, gui_font->font) != 0)
+  {
+    fprintf(stderr, "sdl_text_w_and_h_get: %s\n", strerror(errno));
+
+    sdl_texture_destroy(&texture);
+
+    return 6;
+  }
+
+  gui_rect.aspect_ratio = (float) textw / (float) texth;
+
+  SDL_Rect sdl_rect = sdl_rect_create(gui_rect, gui->width, gui->height);
   
+
   if (sdl_target_texture_render(renderer, menu->texture, texture, &sdl_rect) != 0)
   {
     sdl_texture_destroy(&texture);
@@ -2205,7 +2189,7 @@ int gui_window_border_render(gui_window_t* window, sdl_border_t border)
 /*
  * Render loaded texture (name) to menu texture
  */
-int gui_menu_texture_render(gui_menu_t* menu, char* name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h)
+int gui_menu_texture_render(gui_menu_t* menu, char* name, gui_rect_t gui_rect)
 {
   if (!menu || !name)
   {
@@ -2233,13 +2217,7 @@ int gui_menu_texture_render(gui_menu_t* menu, char* name, gui_size_t x, gui_size
     return 4;
   }
 
-  SDL_Rect sdl_rect =
-  {
-    .x = gui_size_abs_get(gui->width,  x),
-    .y = gui_size_abs_get(gui->height, y),
-    .w = gui_size_abs_get(gui->width,  w),
-    .h = gui_size_abs_get(gui->height, h)
-  };
+  SDL_Rect sdl_rect = sdl_rect_create(gui_rect, gui->width, gui->height);
 
   if (sdl_target_texture_render(renderer, menu->texture, gui_texture->texture, &sdl_rect) != 0)
   {
@@ -3033,7 +3011,7 @@ static inline gui_window_t* gui_menu_window_search(gui_menu_t* menu, char** name
 /*
  * Render texture on either window texture or menu texture
  */
-int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h)
+int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_rect_t rect)
 {
   if (!gui || !menu_name || !texture_name)
   {
@@ -3056,11 +3034,17 @@ int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* t
 
   if (window)
   {
-    gui_window_texture_render(window, texture_name, x, y, w, h);
+    if (gui_window_texture_render(window, texture_name, rect) != 0)
+    {
+      return 4;
+    }
   }
   else
   {
-    gui_menu_texture_render(menu, texture_name, x, y, w, h);
+    if (gui_menu_texture_render(menu, texture_name, rect) != 0)
+    {
+      return 5;
+    }
   }
 
   return 0;

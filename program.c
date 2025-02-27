@@ -18,35 +18,51 @@ void game_render(gui_t* gui)
 {
   gui_clear(gui);
 
-  printf("width: %d height: %d\n", gui->width, gui->height);
+  gui_texture_render(gui, "first", (char*[]) { NULL }, "symbol-one",
+    (gui_rect_t) {
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_MAX
+      },
+      .aspect_ratio = 1 / 1
+    }
+  );
 
-  printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { NULL }, "symbol-one",
-      (gui_size_t) { 0 },
-      (gui_size_t) { 0 },
-      (gui_size_t) { GUI_SIZE_MAX },
-      (gui_size_t) { GUI_SIZE_MAX }
-  ));
+  gui_texture_render(gui, "first", (char*[]) { "parent", NULL }, "background-field",
+    (gui_rect_t) {
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_MAX
+      },
+      .width = (gui_size_t)
+      {
+        .type = GUI_SIZE_MAX
+      }
+    }
+  );
 
-  printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { "parent", NULL }, "background-field",
-      (gui_size_t) { 0 },
-      (gui_size_t) { 0 },
-      (gui_size_t) { GUI_SIZE_MAX },
-      (gui_size_t) { GUI_SIZE_MAX }
-  ));
+  gui_texture_render(gui, "first", (char*[]) { "parent", NULL }, "symbol-two",
+    (gui_rect_t) {
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_MAX
+      },
+      .xpos = GUI_POS_RIGHT,
+      .aspect_ratio = 1 / 1
+    }
+  );
 
-  printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { "parent", NULL }, "symbol-two",
-      (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.3 },
-      (gui_size_t) { 0 },
-      (gui_size_t) { .type = GUI_SIZE_REL, .value.rel = 0.5 },
-      (gui_size_t) { GUI_SIZE_MAX }
-  ));
-
-  printf("gui_texture_render: %d\n", gui_texture_render(gui, "first", (char*[]) { "second-button", NULL }, "square-exploded",
-      (gui_size_t) { 0 },
-      (gui_size_t) { 0 },
-      (gui_size_t) { GUI_SIZE_MAX },
-      (gui_size_t) { GUI_SIZE_MAX }
-  ));
+  gui_texture_render(gui, "first", (char*[]) { "second-button", NULL }, "square-exploded",
+    (gui_rect_t) {
+      .width = (gui_size_t) {
+        .type = GUI_SIZE_MAX
+      },
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_MAX
+      }
+    }
+  );
   
   if (gui->curr_window && strcmp(gui->curr_window->name, "second-button") == 0)
   {
@@ -330,7 +346,7 @@ void gui_menu_first_setup(gui_t* gui)
     {
       .thickness = 10,
       .opacity = 255,
-      .color = (SDL_Color) {255, 0, 255}
+      .color = (SDL_Color) {255, 0, 0}
     }
   );
 
