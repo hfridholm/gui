@@ -45,6 +45,19 @@ void game_render(gui_t* gui)
       (gui_size_t) { GUI_SIZE_MAX },
       (gui_size_t) { GUI_SIZE_MAX }
   ));
+  
+  printf("gui_text_render: %d\n", gui_text_render(gui, "main", (char*[]) { "back-button", NULL }, "BACK",
+    (gui_rect_t) {
+      .width = (gui_size_t) {
+        .type = GUI_SIZE_ABS,
+        .value.abs = 50
+      },
+      .height = (gui_size_t)
+      {
+        .type = GUI_SIZE_NONE
+      }
+    }, "default", (SDL_Color) {255, 255, 255}
+  ));
 }
 
 /*
@@ -130,18 +143,30 @@ void gui_events_create(gui_t* gui)
  */
 void gui_assets_load(gui_t* gui)
 {
-  gui_asset_t assets[] = {
+  gui_asset_t textures[] = {
     { "symbol-one", "../minesweeper/assets/textures/symbol-one.png" },
     { "symbol-two", "../minesweeper/assets/textures/symbol-two.png" },
     { "square-exploded", "../minesweeper/assets/textures/square-exploded.png" },
     { "background-field", "../minesweeper/assets/textures/background-field.png" }
   };
 
-  size_t asset_count = sizeof(assets) / sizeof(assets[0]);
+  size_t texture_count = sizeof(textures) / sizeof(gui_asset_t);
 
-  if (gui_textures_load(gui, assets, asset_count) == 0)
+  if (gui_textures_load(gui, textures, texture_count) == 0)
   {
     printf("Loaded textures\n");
+  }
+
+
+  gui_asset_t fonts[] = {
+    { "default", "../minesweeper/assets/fonts/font.ttf" }
+  };
+
+  size_t font_count = sizeof(fonts) / sizeof(gui_asset_t);
+
+  if (gui_fonts_load(gui, fonts, font_count) == 0)
+  {
+    printf("Loaded fonts\n");
   }
 }
 

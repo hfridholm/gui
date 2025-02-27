@@ -40,9 +40,10 @@ typedef enum gui_pos_t
  */
 typedef enum gui_size_type_t
 {
-  GUI_SIZE_REL, // Relative size to parent
-  GUI_SIZE_ABS, // Absolute size in pixels
-  GUI_SIZE_MAX  // Max available size
+  GUI_SIZE_NONE, // Size not specified
+  GUI_SIZE_REL,  // Relative size to parent
+  GUI_SIZE_ABS,  // Absolute size in pixels
+  GUI_SIZE_MAX   // Max available size
 } gui_size_type_t;
 
 /*
@@ -138,6 +139,8 @@ extern int    gui_render(gui_t* gui);
 
 extern int    gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h);
 
+extern int    gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text, gui_rect_t rect, char* font_name, SDL_Color color);
+
 extern void   gui_event_handle(gui_t* gui, SDL_Event* event);
 
 extern int    gui_event_create(gui_t* gui, char* name, gui_event_handler_t handler);
@@ -181,6 +184,7 @@ extern int gui_textures_load(gui_t* gui, gui_asset_t* assets, size_t count);
 #ifdef GUI_IMPLEMENT
 
 #include <stdbool.h>
+#include <errno.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -368,6 +372,35 @@ static inline SDL_Texture* sdl_texture_load(SDL_Renderer* renderer, const char* 
   }
 
   return texture;
+}
+
+/*
+ * Load TTF Font
+ */
+static inline TTF_Font* ttf_font_load(const char* filepath, int size)
+{
+  TTF_Font* font = TTF_OpenFont(filepath, size);
+
+  if (!font)
+  {
+    fprintf(stderr, "TTF_OpenFont: %s\n", TTF_GetError());
+
+    return NULL;
+  }
+
+  return font;
+}
+
+/*
+ * Destroy (close) TTF Font
+ */
+static inline void ttf_font_destroy(TTF_Font** font)
+{
+  if (!font || !(*font)) return;
+
+  TTF_CloseFont(*font);
+
+  *font = NULL;
 }
 
 /*
@@ -626,7 +659,7 @@ static inline void gui_font_destroy(gui_font_t** font)
 {
   if (!font || !(*font)) return;
 
-  // ttf_font_destroy(&(*font)->font);
+  ttf_font_destroy(&(*font)->font);
 
   free(*font);
 
@@ -803,6 +836,101 @@ int gui_textures_load(gui_t* gui, gui_asset_t* assets, size_t count)
 }
 
 /*
+ * Create gui_font (This is an internal function)
+ */
+static inline gui_font_t* gui_font_create(char* name, TTF_Font* font)
+{
+  gui_font_t* gui_font = malloc(sizeof(gui_font_t));
+
+  if (!gui_font)
+  {
+    return NULL;
+  }
+
+  gui_font->name    = name;
+  gui_font->font = font;
+
+  return gui_font;
+}
+
+/*
+ * Load font and add it to gui assets
+ */
+int gui_font_load(gui_t* gui, gui_asset_t asset)
+{
+  char* name     = asset.name;
+  char* filepath = asset.filepath;
+
+  if (!gui || !name || !filepath)
+  {
+    return 1;
+  }
+
+  TTF_Font* font = ttf_font_load(filepath, 24);
+
+  if (!font)
+  {
+    return 2;
+  }
+
+  gui_assets_t* assets = gui->assets;
+
+  if (!assets)
+  {
+    ttf_font_destroy(&font);
+
+    return 3;
+  }
+
+  gui_font_t* gui_font = gui_font_create(name, font);
+
+  if (!gui_font)
+  {
+    ttf_font_destroy(&font);
+
+    return 4;
+  }
+
+  gui_font_t** temp_fonts = realloc(assets->fonts, sizeof(gui_font_t*) * (assets->font_count + 1));
+
+  if (!temp_fonts)
+  {
+    ttf_font_destroy(&font);
+
+    free(gui_font);
+
+    return 4;
+  }
+
+  assets->fonts = temp_fonts;
+
+  assets->fonts[assets->font_count++] = gui_font;
+
+  return 0;
+}
+
+/*
+ * Load fonts and add them to gui assets
+ */
+int gui_fonts_load(gui_t* gui, gui_asset_t* assets, size_t count)
+{
+  if (!gui || !assets)
+  {
+    return 1;
+  }
+
+  for (size_t index = 0; index < count; index++)
+  {
+    if (gui_font_load(gui, assets[index]) != 0)
+    {
+      return 2;
+    }
+  }
+
+  return 0;
+}
+
+/*
  * Get loaded texture by name
  */
 static inline gui_texture_t* gui_texture_get(gui_t* gui, char* name)
@@ -823,6 +951,93 @@ static inline gui_texture_t* gui_texture_get(gui_t* gui, char* name)
 }
 
 /*
+ * Get loaded font by name
+ */
+static inline gui_font_t* gui_font_get(gui_t* gui, char* name)
+{
+  gui_assets_t* assets = gui->assets;
+
+  for (size_t index = 0; index < assets->font_count; index++)
+  {
+    gui_font_t* gui_font = assets->fonts[index];
+
+    if (strcmp(gui_font->name, name) == 0)
+    {
+      return gui_font;
+    }
+  }
+
+  return NULL;
+}
+
+/*
+ * Font
+ */
+
+/*
+ * Get texture of text
+ */
+static inline SDL_Texture* sdl_text_texture_create(SDL_Renderer* renderer, const char* text, TTF_Font* font, SDL_Color color)
+{
+  SDL_Surface* surface = TTF_RenderText_Solid(font, text, color);
+
+  if (!surface)
+  {
+    return NULL;
+  }
+
+  SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+
+  SDL_FreeSurface(surface);
+
+  if (!texture)
+  {
+    fprintf(stderr, "SDL_CreateTextureFromSurface: %s\n", SDL_GetError());
+
+    return NULL;
+  }
+
+  return texture;
+}
+
+/*
+ * Get width and height of text
+ */
+static inline int sdl_text_w_and_h_get(int* w, int* h, const char* text, TTF_Font* font)
+{
+  SDL_Surface* surface = TTF_RenderText_Solid(font, text, (SDL_Color) { 0 });
+
+  if (!surface)
+  {
+    fprintf(stderr, "TTF_RenderText_Solid: %s\n", TTF_GetError());
+
+    return 1;
+  }
+
+  *w = surface->w;
+  *h = surface->h;
+
+  SDL_FreeSurface(surface);
+
+  return 0;
+}
+
+/*
+ * Get width and height of texture
+ */
+static inline int gui_texture_w_and_h_get(int* w, int* h, SDL_Texture* texture)
+{
+  if (SDL_QueryTexture(texture, NULL, NULL, w, h) != 0)
+  {
+    fprintf(stderr, "SDL_QueryTexture: %s\n", SDL_GetError());
+
+    return 1;
+  }
+
+  return 0;
+}
+
+/*
  * Window
  */
 
@@ -840,9 +1055,68 @@ static inline int gui_size_abs_get(int parent_size, gui_size_t gui_size)
     case GUI_SIZE_ABS:
       return gui_size.value.abs;
 
-    default: case GUI_SIZE_MAX:
+    case GUI_SIZE_MAX:
       return parent_size;
+
+    default: case GUI_SIZE_NONE:
+      return 0;
   }
+}
+
+/*
+ *
+ */
+static inline int sdl_rect_x_get(gui_pos_t pos, int left_width, int right_width, int parent_width, int w)
+{
+  switch (pos)
+  {
+    case GUI_LEFT:
+      return left_width;
+
+    case GUI_RIGHT:
+      return parent_width - w - right_width;
+
+    default: case GUI_CENTER:
+      return (float) (parent_width - w) / 2.f;
+  }
+}
+
+/*
+ *
+ */
+static inline int sdl_rect_y_get(gui_pos_t pos, int top_height, int bottom_height, int parent_height, int h)
+{
+  switch (pos)
+  {
+    case GUI_TOP:
+      return top_height;
+
+    case GUI_BOTTOM:
+      return parent_height - h - bottom_height;
+
+    default: case GUI_CENTER:
+      return (float) (parent_height - h) / 2.f;
+  }
+}
+
+/*
+ *
+ */
+static inline int sdl_rect_w_get(int left_width, int right_width, int parent_width, gui_size_t width)
+{
+  int abs_width = gui_size_abs_get(parent_width, width);
+
+  return MIN(parent_width - left_width - right_width, abs_width);
+}
+
+/*
+ *
+ */
+static inline int sdl_rect_h_get(int top_height, int bottom_height, int parent_height, gui_size_t height)
+{
+  int abs_height = gui_size_abs_get(parent_height, height);
+
+  return  MIN(parent_height - top_height - bottom_height, abs_height);
 }
 
 /*
@@ -851,50 +1125,62 @@ static inline int gui_size_abs_get(int parent_size, gui_size_t gui_size)
  */
 static inline SDL_Rect sdl_rect_create(gui_rect_t gui_rect, int parent_width, int parent_height)
 {
-  int abs_width  = gui_size_abs_get(parent_width,  gui_rect.width);
-  int abs_height = gui_size_abs_get(parent_height, gui_rect.height);
-
   int left_width    = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_LEFT]);
   int right_width   = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_RIGHT]);
   int top_height    = gui_size_abs_get(parent_height, gui_rect.margin[GUI_TOP]);
   int bottom_height = gui_size_abs_get(parent_height, gui_rect.margin[GUI_BOTTOM]);
 
-  int w = MIN(parent_width  - left_width - right_width,   abs_width);
-  int h = MIN(parent_height - top_height - bottom_height, abs_height);
+  int w = sdl_rect_w_get(left_width, right_width, parent_width, gui_rect.width);
 
-  int x;
+  int h = sdl_rect_h_get(top_height, bottom_height, parent_height, gui_rect.height);
 
-  switch (gui_rect.xpos)
-  {
-    case GUI_LEFT:
-      x = left_width;
-      break;
+  int x = sdl_rect_x_get(gui_rect.xpos, left_width, right_width, parent_width, w);
 
-    case GUI_RIGHT:
-      x = parent_width - w - right_width;
-      break;
-
-    default: case GUI_CENTER:
-      x = (float) (parent_width - w) / 2.f;
-      break;
-  }
-
-  int y;
+  int y = sdl_rect_y_get(gui_rect.ypos, top_height, bottom_height, parent_height, h);
   
-  switch (gui_rect.ypos)
+  return (SDL_Rect) {x, y, w, h};
+}
+
+/*
+ * Create SDL Rect from gui_rect,
+ * with the help of parent width and height and aspect ratio
+ */
+static inline SDL_Rect sdl_ratio_rect_create(gui_rect_t gui_rect, int parent_width, int parent_height, float aspect_ratio)
+{
+  int left_width    = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_LEFT]);
+  int right_width   = gui_size_abs_get(parent_width,  gui_rect.margin[GUI_RIGHT]);
+  int top_height    = gui_size_abs_get(parent_height, gui_rect.margin[GUI_TOP]);
+  int bottom_height = gui_size_abs_get(parent_height, gui_rect.margin[GUI_BOTTOM]);
+
+  printf("left_width: %d\n", left_width);
+  printf("right_width: %d\n", right_width);
+  printf("top_height: %d\n", top_height);
+  printf("bottom_height: %d\n", bottom_height);
+
+  printf("xpos: %d ypos: %d\n", gui_rect.xpos, gui_rect.ypos);
+
+  int w = sdl_rect_w_get(left_width, right_width, parent_width, gui_rect.width);
+
+  int h = sdl_rect_h_get(top_height, bottom_height, parent_height, gui_rect.height);
+
+
+  if (gui_rect.width.type == GUI_SIZE_NONE)
   {
-    case GUI_TOP:
-      y = top_height;
-      break;
-
-    case GUI_BOTTOM:
-      y = parent_height - h - bottom_height;
-      break;
-
-    default: case GUI_CENTER:
-      y = (float) (parent_height - h) / 2.f;
-      break;
+    w = (float) h * aspect_ratio;
   }
+  else if (gui_rect.height.type == GUI_SIZE_NONE)
+  {
+    h = (float) w / aspect_ratio;
+  }
+
+
+  int x = sdl_rect_x_get(gui_rect.xpos, left_width, right_width, parent_width, w);
+
+  int y = sdl_rect_y_get(gui_rect.ypos, top_height, bottom_height, parent_height, h);
+
+  printf("aspect_ratio: %f\n", aspect_ratio);
+  printf("parent w: %d h: %d\n", parent_width, parent_height);
+  printf("ratio sdl_rect: x: %d y: %d w: %d h: %d\n", x, y, w, h);
   
   return (SDL_Rect) {x, y, w, h};
 }
@@ -1094,6 +1380,78 @@ int gui_window_texture_render(gui_window_t* window, char* name, gui_size_t x, gu
   {
     return 5;
   }
+
+  return 0;
+}
+
+/*
+ *
+ */
+static inline SDL_Rect sdl_text_rect_create(gui_rect_t gui_rect, int width, int height, char* text, TTF_Font* font)
+{
+  int textw;
+  int texth;
+
+  if (sdl_text_w_and_h_get(&textw, &texth, text, font) == 0)
+  {
+    float aspect_ratio = (float) textw / (float) texth;
+
+    return sdl_ratio_rect_create(gui_rect, width, height, aspect_ratio);
+  }
+
+  fprintf(stderr, "sdl_text_w_and_h_get: %s\n", strerror(errno));
+
+  return sdl_rect_create(gui_rect, width, height);
+}
+
+/*
+ *
+ */
+static inline int gui_window_text_render(gui_window_t* window, char* text, gui_rect_t gui_rect, char* font_name, SDL_Color color)
+{
+  if (!window || !text || !font_name)
+  {
+    return 1;
+  }
+
+  gui_t* gui = window->gui;
+
+  if (!gui)
+  {
+    return 2;
+  }
+
+  SDL_Renderer* renderer = gui->renderer;
+
+  if (!renderer)
+  {
+    return 3;
+  }
+
+  gui_font_t* gui_font = gui_font_get(gui, font_name);
+  
+  if (!gui_font)
+  {
+    return 4;
+  }
+
+  SDL_Texture* texture = sdl_text_texture_create(renderer, text, gui_font->font, color);
+
+  if (!texture)
+  {
+    return 5;
+  }
+
+  SDL_Rect sdl_rect = sdl_text_rect_create(gui_rect, window->sdl_rect.w, window->sdl_rect.h, text, gui_font->font);
+  
+  if (sdl_target_texture_render(renderer, window->texture, texture, &sdl_rect) != 0)
+  {
+    sdl_texture_destroy(&texture);
+
+    return 5;
+  }
+
+  sdl_texture_destroy(&texture);
 
   return 0;
 }
@@ -1442,6 +1800,8 @@ static inline int _gui_events_create(gui_t* gui)
       .handler.gui = &_gui_event_quit_handle
     }) != 0)
   {
+    fprintf(stderr, "gui_event_create quit failed\n");
+
     return 1;
   }
 
@@ -1452,6 +1812,8 @@ static inline int _gui_events_create(gui_t* gui)
       .handler.resize = &_gui_event_resize_handle
     }) != 0)
   {
+    fprintf(stderr, "gui_event_create resize failed\n");
+
     return 2;
   }
 
@@ -1929,6 +2291,10 @@ static inline void gui_event_handler_call(gui_t* gui, SDL_Event* event, gui_even
 {
   switch (handler.type)
   {
+    case GUI_EVENT_HANDLER_GUI:
+      handler.handler.gui(gui);
+      break;
+
     case GUI_EVENT_HANDLER_KEY:
       int key = event->key.keysym.sym;
 
@@ -2106,6 +2472,34 @@ void gui_destroy(gui_t** gui)
 }
 
 /*
+ * Search after window in menu
+ */
+static inline gui_window_t* gui_menu_window_search(gui_menu_t* menu, char** names)
+{
+  char* name;
+  gui_window_t* window = NULL;
+
+  for (size_t index = 0; names && (name = names[index]); index++)
+  {
+    if (index == 0)
+    {
+      window = gui_menu_window_get(menu, name);
+    }
+    else
+    {
+      window = gui_window_child_get(window, name);
+    }
+
+    if (!window)
+    {
+      return NULL;
+    }
+  }
+
+  return window;
+}
+
+/*
  * Render texture on either window texture or menu texture
  */
 int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* texture_name, gui_size_t x, gui_size_t y, gui_size_t w, gui_size_t h)
@@ -2122,24 +2516,11 @@ int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* t
     return 2;
   }
 
-  char* window_name;
-  gui_window_t* window = NULL;
+  gui_window_t* window = gui_menu_window_search(menu, window_names);
 
-  for (size_t index = 0; window_names && (window_name = window_names[index]); index++)
+  if (window_names && *window_names && !window)
   {
-    if (index == 0)
-    {
-      window = gui_menu_window_get(menu, window_name);
-    }
-    else
-    {
-      window = gui_window_child_get(window, window_name);
-    }
-
-    if (!window)
-    {
-      return 3;
-    }
+    return 3;
   }
 
   if (window)
@@ -2149,6 +2530,42 @@ int gui_texture_render(gui_t* gui, char* menu_name, char** window_names, char* t
   else
   {
     gui_menu_texture_render(menu, texture_name, x, y, w, h);
+  }
+
+  return 0;
+}
+
+/*
+ * Render text on either window texture or menu texture
+ */
+int gui_text_render(gui_t* gui, char* menu_name, char** window_names, char* text, gui_rect_t rect, char* font_name, SDL_Color color)
+{
+  if (!gui || !menu_name || !font_name)
+  {
+    return 1;
+  }
+
+  gui_menu_t* menu = gui_menu_get(gui, menu_name);
+
+  if (!menu)
+  {
+    return 2;
+  }
+
+  gui_window_t* window = gui_menu_window_search(menu, window_names);
+
+  if (window_names && *window_names && !window)
+  {
+    return 3;
+  }
+
+  if (window)
+  {
+    gui_window_text_render(window, text, rect, font_name, color);
+  }
+  else
+  {
+    // gui_menu_text_render(menu, text, rect, font_name, color);
   }
 
   return 0;
